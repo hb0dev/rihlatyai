@@ -3,7 +3,7 @@ import { motion, AnimatePresence } from 'motion/react';
 import { Check, X, MessageSquare, Image, Zap, ArrowRight, Loader2, CheckCircle2, XCircle, Shield } from 'lucide-react';
 import { useAuth } from '../context/AuthContext';
 import { useSubscription } from '../context/SubscriptionContext';
-import { doc, updateDoc } from 'firebase/firestore';
+import { doc, setDoc } from 'firebase/firestore';
 import { db } from '../config/firebase';
 import { WORKER_URL } from '../config/apiKeys';
 import logo from '../logo/rihlaty logo.png';
@@ -56,7 +56,7 @@ export function SubscribePage({ language, onNavigateBack }: SubscribePageProps) 
 
       if (data.status === 'paid') {
         try {
-          await updateDoc(doc(db, 'users', user.uid), {
+          await setDoc(doc(db, 'users', user.uid), {
             subscription: {
               plan: 'pro',
               billingPeriod: data.plan,
@@ -65,7 +65,7 @@ export function SubscribePage({ language, onNavigateBack }: SubscribePageProps) 
               expiresAt: data.expiresAt,
               amount: data.amount,
             },
-          });
+          }, { merge: true });
         } catch (fbErr: any) {
           console.error('Firestore update failed:', fbErr);
           setError(`Firestore: ${fbErr?.message || 'update failed'}`);
