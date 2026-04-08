@@ -76,7 +76,7 @@ contact@rihlaty.ai
 🌐 الموقع:
 www.rihlaty.ai
 
-الإصدار 1.3.0`,
+الإصدار 1.4.0`,
       contactSupport: 'تواصل مع الدعم',
       deleteAccount: 'حذف الحساب',
       deleteTitle: 'حذف الحساب',
