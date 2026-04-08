@@ -1,9 +1,10 @@
 import { useState, useEffect } from 'react';
 import { motion, AnimatePresence } from 'motion/react';
-import { User, Edit3, Globe, LogOut, ChevronRight, X, Check, Moon, Sun, Shield, Trash2, AlertTriangle, Bell, Cloud, MapPin, Bot, Mail, Info } from 'lucide-react';
+import { User, Edit3, Globe, LogOut, ChevronRight, X, Check, Moon, Sun, Shield, Trash2, AlertTriangle, Bell, Cloud, MapPin, Bot, Mail, Info, Crown } from 'lucide-react';
 import { useTheme } from '../context/ThemeContext';
 import { useAuth } from '../context/AuthContext';
 import { useNotifications } from '../context/NotificationContext';
+import { useSubscription } from '../context/SubscriptionContext';
 
 interface ProfilePageProps {
   language: string;
@@ -15,6 +16,7 @@ export function ProfilePage({ language, onLogout, onLanguageChange }: ProfilePag
   const { isDark, toggleTheme } = useTheme();
   const { user, userData, logout, updateUserProfile, deleteAccount } = useAuth();
   const { isSupported: notificationsSupported, settings: notificationSettings, updateSettings: updateNotificationSettings } = useNotifications();
+  const { isPro, expiresAt, messagesRemaining, dailyMessageLimit, setShowUpgradeModal } = useSubscription();
   const [showEditModal, setShowEditModal] = useState(false);
   const [showLanguageModal, setShowLanguageModal] = useState(false);
   const [showPrivacyModal, setShowPrivacyModal] = useState(false);
@@ -109,6 +111,11 @@ www.rihlaty.ai
       aiNotifications: 'اقتراحات ذكية',
       aiDesc: 'اقتراحات يومية من المساعد الذكي',
       notificationsDisabled: 'الإشعارات غير متاحة على هذا الجهاز',
+      upgradeToPro: 'ترقية إلى Pro',
+      proActive: 'اشتراك Pro فعّال',
+      proExpires: 'ينتهي في',
+      messagesUsed: 'رسالة متبقية اليوم',
+      unlockFeatures: 'افتح 60 رسالة AI + صور الأماكن',
     },
     fr: {
       profile: 'Profil',
@@ -182,6 +189,11 @@ Version 1.3.0`,
       aiNotifications: 'Suggestions IA',
       aiDesc: 'Suggestions quotidiennes de l\'assistant',
       notificationsDisabled: 'Les notifications ne sont pas disponibles sur cet appareil',
+      upgradeToPro: 'Passer à Pro',
+      proActive: 'Abonnement Pro actif',
+      proExpires: 'Expire le',
+      messagesUsed: 'messages restants aujourd\'hui',
+      unlockFeatures: 'Débloquez 60 messages IA + photos des lieux',
     },
     en: {
       profile: 'Profile',
@@ -255,6 +267,11 @@ Version 1.3.0`,
       aiNotifications: 'AI Suggestions',
       aiDesc: 'Daily suggestions from AI assistant',
       notificationsDisabled: 'Notifications are not available on this device',
+      upgradeToPro: 'Upgrade to Pro',
+      proActive: 'Pro Subscription Active',
+      proExpires: 'Expires on',
+      messagesUsed: 'messages left today',
+      unlockFeatures: 'Unlock 60 AI messages + place photos',
     }
   };
 
@@ -397,6 +414,52 @@ Version 1.3.0`,
               transition={{ type: 'spring', stiffness: 500, damping: 30 }}
             />
           </button>
+        </motion.div>
+
+        {/* Pro Subscription Card */}
+        <motion.div initial={{ opacity: 0, y: 15 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.1 }} className="mb-3">
+          {isPro ? (
+            <div className="bg-gradient-to-r from-teal-600 to-emerald-600 rounded-2xl p-4 shadow-elevation-2">
+              <div className="flex items-center gap-3">
+                <div className="bg-white/20 p-2.5 rounded-2xl">
+                  <Crown className="w-5 h-5 text-white" strokeWidth={2} />
+                </div>
+                <div>
+                  <div className="flex items-center gap-2">
+                    <span className="text-white font-bold">{t.proActive}</span>
+                    <span className="bg-white/25 text-white text-[10px] font-bold px-1.5 py-0.5 rounded-md">PRO</span>
+                  </div>
+                  {expiresAt && (
+                    <p className="text-white/70 text-xs mt-0.5">
+                      {t.proExpires} {new Date(expiresAt).toLocaleDateString(language === 'ar' ? 'ar-DZ' : language === 'fr' ? 'fr-FR' : 'en-US')}
+                    </p>
+                  )}
+                  <p className="text-white/70 text-xs mt-0.5">{messagesRemaining}/{dailyMessageLimit} {t.messagesUsed}</p>
+                </div>
+              </div>
+            </div>
+          ) : (
+            <motion.button
+              whileTap={{ scale: 0.98 }}
+              onClick={() => setShowUpgradeModal(true)}
+              className="w-full bg-gradient-to-r from-teal-600 via-emerald-600 to-teal-600 rounded-2xl p-4 shadow-elevation-2"
+            >
+              <div className="flex items-center justify-between">
+                <div className="flex items-center gap-3">
+                  <div className="bg-white/20 p-2.5 rounded-2xl">
+                    <Crown className="w-5 h-5 text-white" strokeWidth={2} />
+                  </div>
+                  <div className="text-left">
+                    <p className="text-white font-bold">{t.upgradeToPro}</p>
+                    <p className="text-white/70 text-xs">{t.unlockFeatures}</p>
+                  </div>
+                </div>
+                <div className="bg-white/20 rounded-full p-2">
+                  <ChevronRight className="w-5 h-5 text-white" />
+                </div>
+              </div>
+            </motion.button>
+          )}
         </motion.div>
 
         {/* Menu Items */}

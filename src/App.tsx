@@ -12,10 +12,12 @@ import { HotelsPage } from './components/HotelsPage';
 import { EatPage } from './components/EatPage';
 import { ShoppingPage } from './components/ShoppingPage';
 import { PrivacyPolicyPage } from './components/PrivacyPolicyPage';
+import { SubscribePage } from './components/SubscribePage';
+import { ProUpgradeModal } from './components/ProUpgradeModal';
 import { BottomNav } from './components/BottomNav';
 import { useAuth } from './context/AuthContext';
 import { NotificationProvider } from './context/NotificationContext';
-type Screen = 'language' | 'login' | 'home' | 'explore' | 'profile' | 'ai' | 'beaches' | 'nature' | 'historical' | 'hotels' | 'eat' | 'shopping' | 'privacy';
+type Screen = 'language' | 'login' | 'home' | 'explore' | 'profile' | 'ai' | 'beaches' | 'nature' | 'historical' | 'hotels' | 'eat' | 'shopping' | 'privacy' | 'subscribe';
 interface Destination {
   name: string;
   lat: number;
@@ -44,6 +46,12 @@ function App() {
     
     if (path === '/privacy') {
       setCurrentScreen('privacy');
+      setInitialized(true);
+      return;
+    }
+
+    if (path === '/subscribe') {
+      setCurrentScreen('subscribe');
       setInitialized(true);
       return;
     }
@@ -194,12 +202,22 @@ function App() {
             }}
           />
         );
+      case 'subscribe':
+        return (
+          <SubscribePage
+            language={language}
+            onNavigateBack={() => {
+              window.history.pushState({}, '', '/');
+              setCurrentScreen(user ? 'home' : 'login');
+            }}
+          />
+        );
       default:
         return <LanguageSelection onLanguageSelect={handleLanguageSelect} />;
     }
   };
 
-  const showBottomNav = isLoggedIn && !['language', 'login', 'beaches', 'nature', 'historical', 'hotels', 'eat', 'shopping', 'privacy'].includes(currentScreen);
+  const showBottomNav = isLoggedIn && !['language', 'login', 'beaches', 'nature', 'historical', 'hotels', 'eat', 'shopping', 'privacy', 'subscribe'].includes(currentScreen);
 
   // Show loading screen while initializing
   if (loading || !initialized) {
@@ -224,6 +242,7 @@ function App() {
             onNavigate={(screen) => setCurrentScreen(screen as Screen)}
           />
         )}
+        <ProUpgradeModal language={language} />
       </div>
     </NotificationProvider>
   );

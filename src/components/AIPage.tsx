@@ -1,9 +1,10 @@
 import { useState, useRef, useEffect } from 'react';
 import { motion, AnimatePresence } from 'motion/react';
-import { Send, Bot, User, ArrowRight, Loader2, Sparkles, Menu, X, MessageSquare, Plus, Trash2, Zap, Star, MapPin, Phone, Search, Globe, CheckCircle2 } from 'lucide-react';
+import { Send, Bot, User, ArrowRight, Loader2, Sparkles, Menu, X, MessageSquare, Plus, Trash2, Zap, Star, MapPin, Phone, Search, Globe, CheckCircle2, Lock } from 'lucide-react';
 import aiLogo from '../logo/ailogo.png';
 import { useLocation } from '../context/LocationContext';
 import { useAuth } from '../context/AuthContext';
+import { useSubscription } from '../context/SubscriptionContext';
 import { LocationPrompt } from './LocationPrompt';
 import { sendMessageToAI, getQuickSuggestions, Place, UserContext, AIModel } from '../services/aiService';
 import { collection, doc, setDoc, getDocs, query, orderBy, updateDoc } from 'firebase/firestore';
@@ -126,6 +127,7 @@ function AIPlaceCard({ placeId, placeName }: { placeId: string; placeName: strin
   const [details, setDetails] = useState<any>(null);
   const [loading, setLoading] = useState(true);
   const [imgErrors, setImgErrors] = useState<Set<number>>(new Set());
+  const { isPro, setShowUpgradeModal } = useSubscription();
 
   useEffect(() => {
     const fetchDetails = async () => {
@@ -169,10 +171,18 @@ function AIPlaceCard({ placeId, placeName }: { placeId: string; placeName: strin
               key={i}
               src={photoUrl(photo.reference)}
               alt={placeName}
-              className="w-full h-full object-cover"
+              className={`w-full h-full object-cover ${!isPro ? 'blur-lg scale-105' : ''}`}
               onError={() => setImgErrors(prev => new Set(prev).add(i))}
             />
           ))}
+          {!isPro && (
+            <button onClick={() => setShowUpgradeModal(true)} className="absolute inset-0 flex items-center justify-center bg-black/20">
+              <div className="bg-black/50 backdrop-blur-sm rounded-xl px-4 py-2.5 flex items-center gap-2">
+                <Lock className="w-4 h-4 text-white" />
+                <span className="text-white text-xs font-bold">PRO</span>
+              </div>
+            </button>
+          )}
         </div>
       )}
       <div className="p-3">
@@ -255,6 +265,7 @@ export function AIPage({ language, onNavigateBack }: AIPageProps) {
   const inputRef = useRef<HTMLTextAreaElement>(null);
   const { userLocation, isLoading: locationLoading, requestLocationPermission } = useLocation();
   const { user } = useAuth();
+  const { canSendMessage, messagesRemaining, dailyMessageLimit, isPro, incrementMessageCount, setShowUpgradeModal } = useSubscription();
   useEffect(() => {
     const loadConversations = async () => {
       if (!user) {
@@ -496,6 +507,11 @@ export function AIPage({ language, onNavigateBack }: AIPageProps) {
   const handleSendMessage = async (text: string) => {
     if (!text.trim() || isLoading) return;
 
+    if (!canSendMessage) {
+      setShowUpgradeModal(true);
+      return;
+    }
+
     const userText = text.trim();
     const userMessage: Message = {
       id: Date.now().toString(),
@@ -536,6 +552,7 @@ export function AIPage({ language, onNavigateBack }: AIPageProps) {
         { role: 'user', text: userText },
         { role: 'model', text: response.text }
       ]);
+      incrementMessageCount();
 
     } catch (error) {
       console.error('Error sending message:', error);
@@ -713,11 +730,24 @@ export function AIPage({ language, onNavigateBack }: AIPageProps) {
             </div>
               <div>
               <h1 className="text-white text-xl font-bold tracking-tight">{t.title}</h1>
-              <p className="text-white/65 text-sm">{t.subtitle}</p>
+              <div className="flex items-center gap-2">
+                <p className="text-white/65 text-sm">{t.subtitle}</p>
+                {isPro && <span className="bg-teal-300/20 text-teal-200 text-[10px] font-bold px-1.5 py-0.5 rounded-md">PRO</span>}
+              </div>
             </div>
           </div>
           <div className="flex items-center gap-2">
-            {/* Model Toggle Button */}
+            <button
+              onClick={() => !isPro && setShowUpgradeModal(true)}
+              className={`px-2.5 py-1.5 rounded-xl flex items-center gap-1.5 text-xs font-bold transition-colors ${
+                messagesRemaining <= 3 && !isPro ? 'bg-red-500/30 border border-red-300/40 text-red-100'
+                : messagesRemaining <= 5 && !isPro ? 'bg-amber-500/30 border border-amber-300/40 text-amber-100'
+                : 'bg-white/15 text-white/90'
+              }`}
+            >
+              <MessageSquare className="w-3.5 h-3.5" />
+              <span>{messagesRemaining}/{dailyMessageLimit}</span>
+            </button>
             <motion.button
               whileTap={{ scale: 0.95 }}
               onClick={() => {

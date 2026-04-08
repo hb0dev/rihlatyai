@@ -1,7 +1,8 @@
 import { useState, useEffect, useRef } from 'react';
 import { motion, AnimatePresence } from 'motion/react';
-import { X, MapPin, Phone, Star, Navigation, Loader2 } from 'lucide-react';
+import { X, MapPin, Phone, Star, Navigation, Loader2, Lock } from 'lucide-react';
 import { WORKER_URL } from '../config/apiKeys';
+import { useSubscription } from '../context/SubscriptionContext';
 export interface PlaceInfo {
   name: string;
   lat: number;
@@ -32,10 +33,11 @@ export function PlaceDetailModal({ place, language, onNavigate, onClose }: Place
   const [currentPhoto, setCurrentPhoto] = useState(0);
   const [imgError, setImgError] = useState(false);
   const touchStartX = useRef(0);
+  const { isPro, setShowUpgradeModal } = useSubscription();
   const translations = {
-    ar: { navigate: 'اذهب للخريطة', noPhotos: 'لا توجد صور', open: 'مفتوح الآن', closed: 'مغلق', reviews: 'تقييم' },
-    fr: { navigate: 'Voir sur la carte', noPhotos: 'Pas de photos', open: 'Ouvert', closed: 'Fermé', reviews: 'avis' },
-    en: { navigate: 'View on Map', noPhotos: 'No photos', open: 'Open now', closed: 'Closed', reviews: 'reviews' },
+    ar: { navigate: 'اذهب للخريطة', noPhotos: 'لا توجد صور', open: 'مفتوح الآن', closed: 'مغلق', reviews: 'تقييم', unlockPhotos: 'اشترك في Pro لرؤية الصور' },
+    fr: { navigate: 'Voir sur la carte', noPhotos: 'Pas de photos', open: 'Ouvert', closed: 'Fermé', reviews: 'avis', unlockPhotos: 'Passez à Pro pour voir les photos' },
+    en: { navigate: 'View on Map', noPhotos: 'No photos', open: 'Open now', closed: 'Closed', reviews: 'reviews', unlockPhotos: 'Upgrade to Pro to see photos' },
   };
   const t = translations[language as keyof typeof translations] || translations.en;
   useEffect(() => {
@@ -108,9 +110,20 @@ export function PlaceDetailModal({ place, language, onNavigate, onClose }: Place
                 <img
                   src={photoUrl(photos[currentPhoto].reference)}
                   alt={place.name}
-                  className="w-full h-full object-cover"
+                  className={`w-full h-full object-cover ${!isPro ? 'blur-lg scale-105' : ''}`}
                   onError={() => setImgError(true)}
                 />
+                {!isPro && (
+                  <button
+                    onClick={(e) => { e.stopPropagation(); setShowUpgradeModal(true); }}
+                    className="absolute inset-0 flex flex-col items-center justify-center bg-black/20"
+                  >
+                    <div className="bg-black/50 backdrop-blur-sm rounded-2xl px-5 py-4 flex flex-col items-center">
+                      <Lock className="w-6 h-6 text-white mb-2" />
+                      <p className="text-white text-xs font-medium text-center">{t.unlockPhotos}</p>
+                    </div>
+                  </button>
+                )}
               </div>
             ) : (
               <div className="flex flex-col items-center justify-center h-full">
@@ -128,7 +141,7 @@ export function PlaceDetailModal({ place, language, onNavigate, onClose }: Place
             </button>
 
             {/* Photo dots */}
-            {photos.length > 1 && !imgError && (
+            {isPro && photos.length > 1 && !imgError && (
               <div className="absolute bottom-3 left-0 right-0 flex justify-center gap-1.5">
                 {photos.map((_, i) => (
                   <button
@@ -143,7 +156,7 @@ export function PlaceDetailModal({ place, language, onNavigate, onClose }: Place
             )}
 
             {/* Photo gradient overlay */}
-            {photos.length > 0 && !imgError && !loading && (
+            {isPro && photos.length > 0 && !imgError && !loading && (
               <div className="absolute bottom-0 left-0 right-0 h-16 bg-gradient-to-t from-black/30 to-transparent" />
             )}
           </div>

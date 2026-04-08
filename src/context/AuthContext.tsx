@@ -10,6 +10,15 @@ import {
 } from 'firebase/auth';
 import { doc, setDoc, getDoc, updateDoc, deleteDoc, collection, getDocs } from 'firebase/firestore';
 import { auth, db } from '../config/firebase';
+export interface SubscriptionData {
+  plan: 'free' | 'pro';
+  billingPeriod?: 'monthly' | 'yearly';
+  chargilyCheckoutId?: string;
+  startedAt?: string;
+  expiresAt?: string;
+  amount?: number;
+}
+
 export interface UserData {
   uid: string;
   email: string;
@@ -17,6 +26,7 @@ export interface UserData {
   photoURL?: string;
   language: string;
   createdAt: Date;
+  subscription?: SubscriptionData;
 }
 interface AuthContextType {
   user: User | null;
