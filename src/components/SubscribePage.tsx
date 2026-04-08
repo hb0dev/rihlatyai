@@ -87,18 +87,28 @@ export function SubscribePage({ language, onNavigateBack }: SubscribePageProps) 
           plan: selectedPlan,
           userId: user.uid,
           userEmail: user.email,
-          successUrl: `${window.location.origin}/subscribe?checkout_id={checkout_id}`,
-          failureUrl: `${window.location.origin}/subscribe?status=failed`,
+          successUrl: 'https://rihlaty.ai/subscribe?checkout_id={checkout_id}',
+          failureUrl: 'https://rihlaty.ai/subscribe?status=failed',
         }),
       });
       const data = await res.json();
       if (data.checkoutUrl) {
-        window.location.href = data.checkoutUrl;
+        const isNative = typeof (window as any).Capacitor !== 'undefined' && (window as any).Capacitor?.isNativePlatform?.();
+        if (isNative) {
+          try {
+            const { Browser } = await import('@capacitor/browser');
+            await Browser.open({ url: data.checkoutUrl });
+          } catch {
+            window.open(data.checkoutUrl, '_blank');
+          }
+        } else {
+          window.location.href = data.checkoutUrl;
+        }
       } else {
-        setError(t.checkoutError);
+        setError(data.error || t.checkoutError);
       }
-    } catch {
-      setError(t.checkoutError);
+    } catch (e: any) {
+      setError(e?.message || t.checkoutError);
     } finally {
       setLoading(false);
     }
