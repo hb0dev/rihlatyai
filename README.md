@@ -77,7 +77,6 @@ cp .env.example .env
 | `VITE_FIREBASE_STORAGE_BUCKET` | Firebase storage bucket |
 | `VITE_FIREBASE_MESSAGING_SENDER_ID` | Firebase messaging sender ID |
 | `VITE_FIREBASE_APP_ID` | Firebase app ID |
-| `VITE_GOOGLE_MAPS_API_KEY` | Google Maps API key |
 | `VITE_WORKER_URL` | Cloudflare Worker API URL |
 
 ### Development
