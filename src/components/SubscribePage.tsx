@@ -24,16 +24,16 @@ export function SubscribePage({ language, onNavigateBack }: SubscribePageProps) 
   const [paymentSuccess, setPaymentSuccess] = useState(false);
   const [pendingCheckoutId, setPendingCheckoutId] = useState<string | null>(null);
   const t = translations[language as keyof typeof translations] || translations.ar;
-
   useEffect(() => {
     const params = new URLSearchParams(window.location.search);
-    const checkoutId = params.get('checkout_id');
     const status = params.get('status');
-    if (checkoutId && status !== 'failed') {
-      setPendingCheckoutId(checkoutId);
-    }
-    if (status === 'failed') {
+    const storedCheckoutId = localStorage.getItem('rihlaty_checkout_id');
+
+    if (status === 'success' && storedCheckoutId) {
+      setPendingCheckoutId(storedCheckoutId);
+    } else if (status === 'failed') {
       setError(t.paymentFailed);
+      localStorage.removeItem('rihlaty_checkout_id');
     }
   }, []);
 
@@ -43,7 +43,6 @@ export function SubscribePage({ language, onNavigateBack }: SubscribePageProps) 
       setPendingCheckoutId(null);
     }
   }, [pendingCheckoutId, user, authLoading]);
-
   const verifyPayment = async (checkoutId: string) => {
     if (!user) return;
     setVerifying(true);
@@ -63,6 +62,7 @@ export function SubscribePage({ language, onNavigateBack }: SubscribePageProps) 
         });
         setPaymentSuccess(true);
         refreshSubscription();
+        localStorage.removeItem('rihlaty_checkout_id');
         window.history.replaceState({}, '', '/subscribe');
       } else if (data.status === 'pending') {
         setError(t.paymentPending);
@@ -87,12 +87,13 @@ export function SubscribePage({ language, onNavigateBack }: SubscribePageProps) 
           plan: selectedPlan,
           userId: user.uid,
           userEmail: user.email,
-          successUrl: 'https://rihlaty.ai/subscribe?checkout_id={checkout_id}',
+          successUrl: 'https://rihlaty.ai/subscribe?status=success',
           failureUrl: 'https://rihlaty.ai/subscribe?status=failed',
         }),
       });
       const data = await res.json();
-      if (data.checkoutUrl) {
+      if (data.checkoutUrl && data.checkoutId) {
+        localStorage.setItem('rihlaty_checkout_id', data.checkoutId);
         const isNative = typeof (window as any).Capacitor !== 'undefined' && (window as any).Capacitor?.isNativePlatform?.();
         if (isNative) {
           try {
@@ -220,7 +221,6 @@ export function SubscribePage({ language, onNavigateBack }: SubscribePageProps) 
                 <div className="text-gray-400 text-xs font-semibold uppercase tracking-wider py-2">Free</div>
                 <div className="bg-teal-500/10 text-teal-400 text-xs font-bold uppercase tracking-wider py-2 rounded-xl">Pro</div>
               </div>
-
               {[
                 { icon: MessageSquare, label: t.featureMessages, free: `10/${t.day}`, pro: `60/${t.day}` },
                 { icon: Image, label: t.featurePhotos, free: false, pro: true },
@@ -311,12 +311,10 @@ export function SubscribePage({ language, onNavigateBack }: SubscribePageProps) 
                   </>
                 )}
               </button>
-
               <div className="flex items-center justify-center gap-3 mt-5">
                 <span className="text-gray-500 text-xs">{t.poweredBy}</span>
                 <img src={chargilyLogo} alt="Chargily" className="h-5 opacity-60" />
               </div>
-
               <p className="text-gray-600 text-[11px] text-center mt-3 leading-relaxed">{t.terms}</p>
             </motion.div>
           </>
@@ -325,7 +323,6 @@ export function SubscribePage({ language, onNavigateBack }: SubscribePageProps) 
     </div>
   );
 }
-
 const translations = {
   ar: {
     title: 'Rihlaty Pro',
