@@ -14,7 +14,7 @@ interface SubscribePageProps {
   onNavigateBack?: () => void;
 }
 export function SubscribePage({ language, onNavigateBack }: SubscribePageProps) {
-  const { user, signInWithGoogle } = useAuth();
+  const { user, loading: authLoading, signInWithGoogle } = useAuth();
   const { isPro, expiresAt, refreshSubscription } = useSubscription();
   const [selectedPlan, setSelectedPlan] = useState<BillingPeriod>('yearly');
   const [loading, setLoading] = useState(false);
@@ -22,18 +22,28 @@ export function SubscribePage({ language, onNavigateBack }: SubscribePageProps) 
   const [error, setError] = useState('');
   const [verifying, setVerifying] = useState(false);
   const [paymentSuccess, setPaymentSuccess] = useState(false);
+  const [pendingCheckoutId, setPendingCheckoutId] = useState<string | null>(null);
   const t = translations[language as keyof typeof translations] || translations.ar;
+
   useEffect(() => {
     const params = new URLSearchParams(window.location.search);
     const checkoutId = params.get('checkout_id');
     const status = params.get('status');
     if (checkoutId && status !== 'failed') {
-      verifyPayment(checkoutId);
+      setPendingCheckoutId(checkoutId);
     }
     if (status === 'failed') {
       setError(t.paymentFailed);
     }
   }, []);
+
+  useEffect(() => {
+    if (pendingCheckoutId && user && !authLoading) {
+      verifyPayment(pendingCheckoutId);
+      setPendingCheckoutId(null);
+    }
+  }, [pendingCheckoutId, user, authLoading]);
+
   const verifyPayment = async (checkoutId: string) => {
     if (!user) return;
     setVerifying(true);
@@ -103,7 +113,7 @@ export function SubscribePage({ language, onNavigateBack }: SubscribePageProps) 
       setSigningIn(false);
     }
   };
-  if (verifying) {
+  if (verifying || (pendingCheckoutId && (authLoading || !user))) {
     return (
       <div className="min-h-screen bg-[#0a0f1a] flex items-center justify-center">
         <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} className="text-center px-6">
