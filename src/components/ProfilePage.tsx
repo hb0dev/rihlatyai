@@ -76,7 +76,7 @@ contact@rihlaty.ai
 🌐 الموقع:
 www.rihlaty.ai
 
-الإصدار 1.4.0`,
+الإصدار 2.0.0`,
       contactSupport: 'تواصل مع الدعم',
       deleteAccount: 'حذف الحساب',
       deleteTitle: 'حذف الحساب',
@@ -154,7 +154,7 @@ contact@rihlaty.ai
 🌐 Site web:
 www.rihlaty.ai
 
-Version 1.3.0`,
+Version 2.0.0`,
       contactSupport: 'Contacter le support',
       deleteAccount: 'Supprimer le compte',
       deleteTitle: 'Supprimer le compte',
@@ -232,7 +232,7 @@ contact@rihlaty.ai
 🌐 Website:
 www.rihlaty.ai
 
-Version 1.3.0`,
+Version 2.0.0`,
       contactSupport: 'Contact Support',
       deleteAccount: 'Delete Account',
       deleteTitle: 'Delete Account',
