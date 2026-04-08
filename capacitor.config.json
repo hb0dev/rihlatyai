@@ -1,0 +1,23 @@
+{
+  "appId": "com.rihlaty.app",
+  "appName": "Rihlaty",
+  "webDir": "dist",
+  "plugins": {
+    "Geolocation": {
+      "permissions": ["location"]
+    },
+    "StatusBar": {
+      "style": "LIGHT"
+    },
+    "GoogleAuth": {
+      "scopes": ["profile", "email"],
+      "serverClientId": "791203311254-d189riqar57nu2o34k8b5elp51gof7l1.apps.googleusercontent.com",
+      "forceCodeForRefreshToken": true
+    },
+    "LocalNotifications": {
+      "smallIcon": "ic_stat_icon",
+      "iconColor": "#14b8a6",
+      "sound": "default"
+    }
+  }
+}
