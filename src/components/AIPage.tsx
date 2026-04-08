@@ -10,7 +10,6 @@ import { sendMessageToAI, getQuickSuggestions, Place, UserContext, AIModel } fro
 import { collection, doc, setDoc, getDocs, query, orderBy, updateDoc } from 'firebase/firestore';
 import { db } from '../config/firebase';
 import { WORKER_URL } from '../config/apiKeys';
-
 const thinkingSteps = {
   ar: [
     { icon: Search, text: 'البحث في الويب...' },
@@ -28,13 +27,10 @@ const thinkingSteps = {
     { icon: MapPin, text: 'Finding places...' },
   ],
 };
-
 function ThinkingSteps({ language, model }: { language: string; model: AIModel }) {
   const [currentStep, setCurrentStep] = useState(0);
   const [completedSteps, setCompletedSteps] = useState<number[]>([]);
-
   const steps = thinkingSteps[language as keyof typeof thinkingSteps] || thinkingSteps.en;
-
   useEffect(() => {
     if (model !== 'gemini') return;
     const interval = setInterval(() => {
@@ -106,21 +102,24 @@ function ThinkingSteps({ language, model }: { language: string; model: AIModel }
   );
 }
 function parseMessageContent(text: string): { type: 'text' | 'place'; content: string; placeId?: string; placeName?: string }[] {
+  // Strip raw {pid:...} tags that the AI might copy from place data
+  let cleaned = text.replace(/\s*\{pid:[^}]+\}/g, '');
+
   const parts: { type: 'text' | 'place'; content: string; placeId?: string; placeName?: string }[] = [];
   const regex = /\[PLACE:([^:]+):([^\]]+)\]/g;
   let lastIndex = 0;
   let match;
-  while ((match = regex.exec(text)) !== null) {
+  while ((match = regex.exec(cleaned)) !== null) {
     if (match.index > lastIndex) {
-      parts.push({ type: 'text', content: text.slice(lastIndex, match.index) });
+      parts.push({ type: 'text', content: cleaned.slice(lastIndex, match.index) });
     }
     parts.push({ type: 'place', content: '', placeId: match[1], placeName: match[2] });
     lastIndex = match.index + match[0].length;
   }
-  if (lastIndex < text.length) {
-    parts.push({ type: 'text', content: text.slice(lastIndex) });
+  if (lastIndex < cleaned.length) {
+    parts.push({ type: 'text', content: cleaned.slice(lastIndex) });
   }
-  return parts.length > 0 ? parts : [{ type: 'text', content: text }];
+  return parts.length > 0 ? parts : [{ type: 'text', content: cleaned }];
 }
 
 function AIPlaceCard({ placeId, placeName }: { placeId: string; placeName: string; language: string }) {
