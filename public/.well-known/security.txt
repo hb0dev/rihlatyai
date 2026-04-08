@@ -1,0 +1,4 @@
+Contact: mailto:mendashbib4@gmail.com
+Preferred-Languages: ar, fr, en
+Canonical: https://rihlaty.ai/.well-known/security.txt
+Expires: 2027-04-08T00:00:00.000Z

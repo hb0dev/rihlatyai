@@ -26,3 +26,4 @@ GoogleService-Info.plist
 .vercel
 .vercel
 .env*.local
+ghost_report_*.json
