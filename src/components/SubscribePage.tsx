@@ -52,18 +52,25 @@ export function SubscribePage({ language, onNavigateBack }: SubscribePageProps) 
     try {
       const res = await fetch(`${WORKER_URL}/verify-payment?checkout_id=${checkoutId}`);
       const data = await res.json();
+      console.log('Verify response:', data, 'Current user:', user.uid);
+
       if (data.status === 'paid') {
-        const targetUserId = data.userId || user.uid;
-        await updateDoc(doc(db, 'users', targetUserId), {
-          subscription: {
-            plan: 'pro',
-            billingPeriod: data.plan,
-            chargilyCheckoutId: checkoutId,
-            startedAt: new Date().toISOString(),
-            expiresAt: data.expiresAt,
-            amount: data.amount,
-          },
-        });
+        try {
+          await updateDoc(doc(db, 'users', user.uid), {
+            subscription: {
+              plan: 'pro',
+              billingPeriod: data.plan,
+              chargilyCheckoutId: checkoutId,
+              startedAt: new Date().toISOString(),
+              expiresAt: data.expiresAt,
+              amount: data.amount,
+            },
+          });
+        } catch (fbErr: any) {
+          console.error('Firestore update failed:', fbErr);
+          setError(`Firestore: ${fbErr?.message || 'update failed'}`);
+          return;
+        }
         setPaymentSuccess(true);
         refreshSubscription();
         localStorage.removeItem('rihlaty_checkout_id');
@@ -71,10 +78,11 @@ export function SubscribePage({ language, onNavigateBack }: SubscribePageProps) 
       } else if (data.status === 'pending') {
         setError(t.paymentPending);
       } else {
-        setError(t.paymentFailed);
+        setError(`Status: ${data.status || 'unknown'} | ${JSON.stringify(data).slice(0, 200)}`);
       }
-    } catch {
-      setError(t.paymentFailed);
+    } catch (err: any) {
+      console.error('Verify error:', err);
+      setError(`Error: ${err?.message || t.paymentFailed}`);
     } finally {
       setVerifying(false);
     }
