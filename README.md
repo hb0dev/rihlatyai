@@ -10,8 +10,7 @@
 </p>
 
 <p align="center">
-  <a href="https://rihlaty.ai">🌐 Website</a> •
-  <a href="https://rihlaty.ai/apk/rihlaty.apk">📱 Download APK</a>
+  <a href="https://rihlaty.ai">🌐 Website</a>
 </p>
 
 ---
