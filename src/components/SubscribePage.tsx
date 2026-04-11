@@ -50,9 +50,11 @@ export function SubscribePage({ language, onNavigateBack }: SubscribePageProps) 
     if (!user) return;
     setVerifying(true);
     try {
-      const res = await fetch(`${WORKER_URL}/verify-payment?checkout_id=${checkoutId}`);
+      const token = await user.getIdToken();
+      const res = await fetch(`${WORKER_URL}/verify-payment?checkout_id=${checkoutId}`, {
+        headers: { 'Authorization': `Bearer ${token}` },
+      });
       const data = await res.json();
-      console.log('Verify response:', data, 'Current user:', user.uid);
 
       if (data.status === 'paid') {
         try {
@@ -67,7 +69,6 @@ export function SubscribePage({ language, onNavigateBack }: SubscribePageProps) 
             },
           }, { merge: true });
         } catch (fbErr: any) {
-          console.error('Firestore update failed:', fbErr);
           setError(`Firestore: ${fbErr?.message || 'update failed'}`);
           return;
         }
@@ -78,11 +79,10 @@ export function SubscribePage({ language, onNavigateBack }: SubscribePageProps) 
       } else if (data.status === 'pending') {
         setError(t.paymentPending);
       } else {
-        setError(`Status: ${data.status || 'unknown'} | ${JSON.stringify(data).slice(0, 200)}`);
+        setError(data.error || t.paymentFailed);
       }
     } catch (err: any) {
-      console.error('Verify error:', err);
-      setError(`Error: ${err?.message || t.paymentFailed}`);
+      setError(err?.message || t.paymentFailed);
     } finally {
       setVerifying(false);
     }
@@ -92,13 +92,15 @@ export function SubscribePage({ language, onNavigateBack }: SubscribePageProps) 
     setLoading(true);
     setError('');
     try {
+      const token = await user.getIdToken();
       const res = await fetch(`${WORKER_URL}/create-checkout`, {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${token}`,
+        },
         body: JSON.stringify({
           plan: selectedPlan,
-          userId: user.uid,
-          userEmail: user.email,
           successUrl: 'https://rihlaty.ai/subscribe?status=success',
           failureUrl: 'https://rihlaty.ai/subscribe?status=failed',
         }),

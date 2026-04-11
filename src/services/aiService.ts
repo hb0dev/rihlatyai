@@ -1,4 +1,4 @@
-import { WORKER_URL } from '../config/apiKeys';
+import { WORKER_URL, getAuthBearerHeader } from '../config/apiKeys';
 export type AIModel = 'openrouter' | 'gemini';
 export interface Place {
   id: string;
@@ -190,10 +190,12 @@ export const sendMessageToAI = async (
       }
     ];
 
+    const authHeaders = await getAuthBearerHeader();
     const response = await fetch(`${WORKER_URL}/ai`, {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
+        ...authHeaders,
       },
       body: JSON.stringify({
         model: 'google/gemini-2.0-flash-001',
@@ -265,10 +267,12 @@ const sendToGemini = async (
     }
   ];
 
+  const authHeaders = await getAuthBearerHeader();
   const response = await fetch(`${WORKER_URL}/gemini`, {
     method: 'POST',
     headers: {
       'Content-Type': 'application/json',
+      ...authHeaders,
     },
     body: JSON.stringify({
       contents,

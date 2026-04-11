@@ -26,4 +26,10 @@ GoogleService-Info.plist
 .vercel
 .vercel
 .env*.local
-ghost_report_*.json
+
+# Security audit / pentest artifacts (NEVER commit)
+rihlaty/
+.claude/
+
+# Generator scripts
+generate-*.cjs

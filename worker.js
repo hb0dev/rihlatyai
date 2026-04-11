@@ -1,32 +1,160 @@
+const ALLOWED_ORIGINS = [
+  'https://rihlaty.ai',
+  'https://www.rihlaty.ai',
+  'https://rihlaty-app.web.app',
+  'https://rihlaty-app.firebaseapp.com',
+  'https://rihlatyai.vercel.app',
+  'http://localhost:5173',
+  'http://localhost:3000',
+  'http://localhost:4173',
+  'capacitor://localhost',
+  'http://localhost',
+];
+const rateLimitMap = new Map();
+const RATE_LIMIT_WINDOW = 60000;
+const RATE_LIMITS = {
+  '/create-checkout': 5,
+  '/verify-payment': 10,
+  '/ai': 20,
+  '/gemini': 20,
+  '/places': 60,
+  '/geocode': 30,
+  '/autocomplete': 30,
+  '/directions': 20,
+  '/place-details': 40,
+  '/place-photo': 80,
+};
+function checkRateLimit(ip, path) {
+  const key = `${ip}:${path}`;
+  const now = Date.now();
+  const limit = RATE_LIMITS[path] || 30;
+  let entry = rateLimitMap.get(key);
+  if (!entry || now - entry.start > RATE_LIMIT_WINDOW) {
+    entry = { start: now, count: 0 };
+    rateLimitMap.set(key, entry);
+  }
+  entry.count++;
+
+  if (rateLimitMap.size > 10000) {
+    for (const [k, v] of rateLimitMap) {
+      if (now - v.start > RATE_LIMIT_WINDOW) rateLimitMap.delete(k);
+    }
+  }
+  return entry.count <= limit;
+}
+let _cachedJWKs = null;
+let _jwksExpiry = 0;
+async function getGoogleJWKs() {
+  const now = Date.now();
+  if (_cachedJWKs && now < _jwksExpiry) {
+    return _cachedJWKs;
+  }
+  const res = await fetch(
+    'https://www.googleapis.com/service_accounts/v1/jwk/securetoken@system.gserviceaccount.com'
+  );
+  const data = await res.json();
+  const cacheControl = res.headers.get('cache-control');
+  let maxAge = 3600;
+  if (cacheControl) {
+    const match = cacheControl.match(/max-age=(\d+)/);
+    if (match) maxAge = parseInt(match[1]);
+  }
+  _cachedJWKs = data.keys;
+  _jwksExpiry = now + maxAge * 1000;
+  return data.keys;
+}
+function base64urlDecode(str) {
+  str = str.replace(/-/g, '+').replace(/_/g, '/');
+  while (str.length % 4) str += '=';
+  const binary = atob(str);
+  const bytes = new Uint8Array(binary.length);
+  for (let i = 0; i < binary.length; i++) {
+    bytes[i] = binary.charCodeAt(i);
+  }
+  return bytes;
+}
+async function verifyFirebaseToken(authHeader, projectId) {
+  if (!authHeader || !authHeader.startsWith('Bearer ')) return null;
+  const token = authHeader.slice(7);
+  try {
+    const parts = token.split('.');
+    if (parts.length !== 3) return null;
+    const header = JSON.parse(atob(parts[0].replace(/-/g, '+').replace(/_/g, '/')));
+    const payload = JSON.parse(atob(parts[1].replace(/-/g, '+').replace(/_/g, '/')));
+    const now = Math.floor(Date.now() / 1000);
+    if (!payload.sub || typeof payload.sub !== 'string' || payload.sub.length === 0) return null;
+    if (payload.exp <= now) return null;
+    if (payload.iat > now + 300) return null;
+    if (payload.aud !== projectId) return null;
+    if (payload.iss !== `https://securetoken.google.com/${projectId}`) return null;
+    if (header.alg !== 'RS256') return null;
+    const keys = await getGoogleJWKs();
+    const key = keys.find((k) => k.kid === header.kid);
+    if (!key) return null;
+    const cryptoKey = await crypto.subtle.importKey(
+      'jwk',
+      { ...key, ext: true },
+      { name: 'RSASSA-PKCS1-v1_5', hash: 'SHA-256' },
+      false,
+      ['verify']
+    );
+    const data = new TextEncoder().encode(`${parts[0]}.${parts[1]}`);
+    const signature = base64urlDecode(parts[2]);
+    const isValid = await crypto.subtle.verify(
+      'RSASSA-PKCS1-v1_5',
+      cryptoKey,
+      signature,
+      data
+    );
+    if (!isValid) return null;
+    return {
+      uid: payload.sub,
+      email: payload.email || '',
+      emailVerified: payload.email_verified || false,
+    };
+  } catch (e) {
+    return null;
+  }
+}
 export default {
   async fetch(request, env) {
     const url = new URL(request.url);
     const path = url.pathname;
+    const origin = request.headers.get('Origin') || '';
+    const isAllowedOrigin = ALLOWED_ORIGINS.includes(origin);
+    const corsOrigin = isAllowedOrigin ? origin : ALLOWED_ORIGINS[0];
     const corsHeaders = {
-      'Access-Control-Allow-Origin': '*',
+      'Access-Control-Allow-Origin': corsOrigin,
       'Access-Control-Allow-Methods': 'GET, POST, OPTIONS',
-      'Access-Control-Allow-Headers': 'Content-Type, X-API-KEY',
+      'Access-Control-Allow-Headers': 'Content-Type, Authorization',
+      'Access-Control-Max-Age': '86400',
+      'Vary': 'Origin',
     };
     if (request.method === 'OPTIONS') {
       return new Response(null, { headers: corsHeaders });
     }
-
+    if (!isAllowedOrigin && origin) {
+      return jsonRes({ error: 'Forbidden' }, corsHeaders, 403);
+    }
+    const clientIP = request.headers.get('CF-Connecting-IP') || request.headers.get('X-Forwarded-For') || 'unknown';
+    if (!checkRateLimit(clientIP, path)) {
+      return jsonRes({ error: 'Too many requests' }, corsHeaders, 429);
+    }
     const GOOGLE_KEY = env.GOOGLE_MAPS_API_KEY;
     const OPENROUTER_KEY = env.OPENROUTER_API_KEY;
     const GEMINI_KEY = env.GEMINI_API_KEY;
     const CHARGILY_KEY = env.CHARGILY_SECRET_KEY;
-    const CHARGILY_API = 'https://pay.chargily.com/test/api/v2';
-
-    // ========== GEOCODE ==========
+    const CHARGILY_API = env.CHARGILY_API_URL || 'https://pay.chargily.com/test/api/v2';
+    const FIREBASE_PROJECT_ID = env.FIREBASE_PROJECT_ID;
     if (path === '/geocode') {
       const lat = url.searchParams.get('lat');
       const lon = url.searchParams.get('lon');
-      if (!lat || !lon) {
-        return jsonRes({ error: 'lat and lon required' }, corsHeaders, 400);
+      if (!lat || !lon || isNaN(Number(lat)) || isNaN(Number(lon))) {
+        return jsonRes({ error: 'Valid lat and lon required' }, corsHeaders, 400);
       }
       try {
         const res = await fetch(
-          `https://maps.googleapis.com/maps/api/geocode/json?latlng=${lat},${lon}&key=${GOOGLE_KEY}&language=ar`
+          `https://maps.googleapis.com/maps/api/geocode/json?latlng=${encodeURIComponent(lat)},${encodeURIComponent(lon)}&key=${GOOGLE_KEY}&language=ar`
         );
         const data = await res.json();
         if (data.status === 'OK' && data.results?.length > 0) {
@@ -56,12 +184,10 @@ export default {
         return jsonRes({ error: 'Geocode failed' }, corsHeaders, 500);
       }
     }
-
-    // ========== PLACES ==========
     if (path === '/places') {
       const categories = url.searchParams.get('categories') || '';
       const filter = url.searchParams.get('filter') || '';
-      const limit = parseInt(url.searchParams.get('limit') || '20');
+      const limit = Math.min(parseInt(url.searchParams.get('limit') || '20') || 20, 60);
 
       let lat = 0, lng = 0, radius = 50000;
       const m = filter.match(/circle:([-\d.]+),([-\d.]+),(\d+)/);
@@ -75,25 +201,22 @@ export default {
         const bm = bias.match(/proximity:([-\d.]+),([-\d.]+)/);
         if (bm) { lng = parseFloat(bm[1]); lat = parseFloat(bm[2]); }
       }
-
+      if (isNaN(lat) || isNaN(lng)) {
+        return jsonRes({ error: 'Invalid coordinates' }, corsHeaders, 400);
+      }
       const { type, keyword, filter: categoryFilter } = mapCategories(categories);
       const r = Math.min(radius, 50000);
       const fetchLimit = categoryFilter ? Math.max(limit * 2, 40) : limit;
-
       try {
         let gUrl = `https://maps.googleapis.com/maps/api/place/nearbysearch/json?location=${lat},${lng}&radius=${r}&key=${GOOGLE_KEY}&language=ar`;
         if (type) gUrl += `&type=${type}`;
         if (keyword) gUrl += `&keyword=${encodeURIComponent(keyword)}`;
-
         const res = await fetch(gUrl);
         const data = await res.json();
-
         let results = data.results || [];
-
         if (categoryFilter && POST_FILTERS[categoryFilter]) {
           results = results.filter(POST_FILTERS[categoryFilter]);
         }
-
         const features = results.slice(0, limit).map((p) => ({
           properties: {
             name: p.name,
@@ -120,20 +243,17 @@ export default {
         return jsonRes({ type: 'FeatureCollection', features: [] }, corsHeaders);
       }
     }
-
-    // ========== AUTOCOMPLETE ==========
     if (path === '/autocomplete') {
       const text = url.searchParams.get('text');
-      const limit = parseInt(url.searchParams.get('limit') || '5');
-      if (!text) {
-        return jsonRes({ error: 'text required' }, corsHeaders, 400);
+      const limit = Math.min(parseInt(url.searchParams.get('limit') || '5') || 5, 10);
+      if (!text || text.length > 200) {
+        return jsonRes({ error: 'Valid text required' }, corsHeaders, 400);
       }
       try {
         const acRes = await fetch(
           `https://maps.googleapis.com/maps/api/place/autocomplete/json?input=${encodeURIComponent(text)}&key=${GOOGLE_KEY}&language=ar`
         );
         const acData = await acRes.json();
-
         if (acData.status === 'OK' && acData.predictions?.length > 0) {
           const predictions = acData.predictions.slice(0, limit);
           const detailsPromises = predictions.map(async (pred) => {
@@ -164,8 +284,6 @@ export default {
         return jsonRes({ error: 'Autocomplete failed' }, corsHeaders, 500);
       }
     }
-
-    // ========== DIRECTIONS ==========
     if (path === '/directions') {
       const origin = url.searchParams.get('origin');
       const dest = url.searchParams.get('destination');
@@ -174,7 +292,7 @@ export default {
       }
       try {
         const res = await fetch(
-          `https://maps.googleapis.com/maps/api/directions/json?origin=${origin}&destination=${dest}&key=${GOOGLE_KEY}`
+          `https://maps.googleapis.com/maps/api/directions/json?origin=${encodeURIComponent(origin)}&destination=${encodeURIComponent(dest)}&key=${GOOGLE_KEY}`
         );
         const data = await res.json();
         return jsonRes(data, corsHeaders);
@@ -182,16 +300,14 @@ export default {
         return jsonRes({ error: 'Directions failed' }, corsHeaders, 500);
       }
     }
-
-    // ========== PLACE DETAILS ==========
     if (path === '/place-details') {
       const placeId = url.searchParams.get('place_id');
-      if (!placeId) {
-        return jsonRes({ error: 'place_id required' }, corsHeaders, 400);
+      if (!placeId || placeId.length > 300) {
+        return jsonRes({ error: 'Valid place_id required' }, corsHeaders, 400);
       }
       try {
         const res = await fetch(
-          `https://maps.googleapis.com/maps/api/place/details/json?place_id=${placeId}&fields=name,formatted_address,formatted_phone_number,international_phone_number,rating,user_ratings_total,photos,opening_hours&key=${GOOGLE_KEY}&language=ar`
+          `https://maps.googleapis.com/maps/api/place/details/json?place_id=${encodeURIComponent(placeId)}&fields=name,formatted_address,formatted_phone_number,international_phone_number,rating,user_ratings_total,photos,opening_hours&key=${GOOGLE_KEY}&language=ar`
         );
         const data = await res.json();
         if (data.status === 'OK' && data.result) {
@@ -212,50 +328,58 @@ export default {
         }
         return jsonRes({ error: 'Place not found' }, corsHeaders, 404);
       } catch (e) {
-        return jsonRes({ error: e.message }, corsHeaders, 500);
+        return jsonRes({ error: 'Request failed' }, corsHeaders, 500);
       }
     }
-
-    // ========== PLACE PHOTO PROXY ==========
     if (path === '/place-photo') {
       const ref = url.searchParams.get('ref');
       const maxwidth = url.searchParams.get('maxwidth') || '400';
-      if (!ref) {
-        return jsonRes({ error: 'ref required' }, corsHeaders, 400);
+      if (!ref || ref.length > 500) {
+        return jsonRes({ error: 'Valid ref required' }, corsHeaders, 400);
       }
       try {
-        const photoUrl = `https://maps.googleapis.com/maps/api/place/photo?maxwidth=${maxwidth}&photo_reference=${ref}&key=${GOOGLE_KEY}`;
+        const photoUrl = `https://maps.googleapis.com/maps/api/place/photo?maxwidth=${encodeURIComponent(maxwidth)}&photo_reference=${encodeURIComponent(ref)}&key=${GOOGLE_KEY}`;
         const response = await fetch(photoUrl);
         const newHeaders = new Headers(response.headers);
-        newHeaders.set('Access-Control-Allow-Origin', '*');
+        newHeaders.set('Access-Control-Allow-Origin', corsOrigin);
         newHeaders.set('Cache-Control', 'public, max-age=86400');
+        newHeaders.set('Vary', 'Origin');
         return new Response(response.body, {
           status: response.status,
           headers: newHeaders,
         });
       } catch (e) {
-        return jsonRes({ error: e.message }, corsHeaders, 500);
+        return jsonRes({ error: 'Photo fetch failed' }, corsHeaders, 500);
       }
     }
-
-    // ========== CONFIG ==========
-    if (path === '/config') {
-      return jsonRes({ googleMapsKey: GOOGLE_KEY }, corsHeaders);
-    }
-
-    // ========== AI - OpenRouter ==========
     if (path === '/ai' && request.method === 'POST') {
+      const authUser = await verifyFirebaseToken(
+        request.headers.get('Authorization'),
+        FIREBASE_PROJECT_ID
+      );
+      if (!authUser) {
+        return jsonRes({ error: 'Authentication required' }, corsHeaders, 401);
+      }
       try {
         const body = await request.json();
+
+        if (!body.messages || !Array.isArray(body.messages)) {
+          return jsonRes({ error: 'Invalid request body' }, corsHeaders, 400);
+        }
         const response = await fetch('https://openrouter.ai/api/v1/chat/completions', {
           method: 'POST',
           headers: {
             'Authorization': `Bearer ${OPENROUTER_KEY}`,
-            'HTTP-Referer': 'https://rihlaty.app',
+            'HTTP-Referer': 'https://rihlaty.ai',
             'X-Title': 'Rihlaty Tourism App',
             'Content-Type': 'application/json',
           },
-          body: JSON.stringify(body),
+          body: JSON.stringify({
+            model: body.model || 'google/gemini-2.0-flash-001',
+            messages: body.messages,
+            temperature: body.temperature ?? 0.7,
+            max_tokens: Math.min(body.max_tokens || 4096, 8192),
+          }),
         });
         const data = await response.json();
         return jsonRes(data, corsHeaders);
@@ -263,17 +387,31 @@ export default {
         return jsonRes({ error: 'AI request failed' }, corsHeaders, 500);
       }
     }
-
-    // ========== GEMINI ==========
     if (path === '/gemini' && request.method === 'POST') {
+      const authUser = await verifyFirebaseToken(
+        request.headers.get('Authorization'),
+        FIREBASE_PROJECT_ID
+      );
+      if (!authUser) {
+        return jsonRes({ error: 'Authentication required' }, corsHeaders, 401);
+      }
       try {
         const body = await request.json();
+        if (!body.contents || !Array.isArray(body.contents)) {
+          return jsonRes({ error: 'Invalid request body' }, corsHeaders, 400);
+        }
         const response = await fetch(
           `https://generativelanguage.googleapis.com/v1beta/models/gemini-3-flash-preview:generateContent?key=${GEMINI_KEY}`,
           {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify(body),
+            body: JSON.stringify({
+              contents: body.contents,
+              generationConfig: {
+                temperature: body.generationConfig?.temperature ?? 0.7,
+                maxOutputTokens: Math.min(body.generationConfig?.maxOutputTokens || 8192, 16384),
+              },
+            }),
           }
         );
         const data = await response.json();
@@ -282,23 +420,28 @@ export default {
         return jsonRes({ error: 'Gemini request failed' }, corsHeaders, 500);
       }
     }
-
-    // ========== CHARGILY - CREATE CHECKOUT ==========
     if (path === '/create-checkout' && request.method === 'POST') {
+      const authUser = await verifyFirebaseToken(
+        request.headers.get('Authorization'),
+        FIREBASE_PROJECT_ID
+      );
+      if (!authUser) {
+        return jsonRes({ error: 'Authentication required' }, corsHeaders, 401);
+      }
       const PLANS = {
         monthly: { amount: 550, label: 'Rihlaty Pro - Monthly', days: 30 },
         yearly: { amount: 5500, label: 'Rihlaty Pro - Yearly', days: 365 },
       };
-
       try {
-        const { plan, userId, userEmail, successUrl, failureUrl } = await request.json();
-
-        if (!plan || !PLANS[plan] || !userId) {
-          return jsonRes({ error: 'Invalid plan or userId' }, corsHeaders, 400);
+        const { plan, successUrl, failureUrl } = await request.json();
+        if (!plan || !PLANS[plan]) {
+          return jsonRes({ error: 'Invalid plan' }, corsHeaders, 400);
         }
-
         const planInfo = PLANS[plan];
-
+        const allowedSuccessUrls = ['https://rihlaty.ai/subscribe?status=success'];
+        const allowedFailureUrls = ['https://rihlaty.ai/subscribe?status=failed'];
+        const finalSuccessUrl = allowedSuccessUrls.includes(successUrl) ? successUrl : allowedSuccessUrls[0];
+        const finalFailureUrl = allowedFailureUrls.includes(failureUrl) ? failureUrl : allowedFailureUrls[0]; 
         const res = await fetch(`${CHARGILY_API}/checkouts`, {
           method: 'POST',
           headers: {
@@ -308,32 +451,37 @@ export default {
           body: JSON.stringify({
             amount: planInfo.amount,
             currency: 'dzd',
-            success_url: successUrl || 'https://rihlaty.ai/subscribe?status=success',
-            failure_url: failureUrl || 'https://rihlaty.ai/subscribe?status=failed',
+            success_url: finalSuccessUrl,
+            failure_url: finalFailureUrl,
             description: planInfo.label,
             locale: 'ar',
-            metadata: { user_id: userId, plan, user_email: userEmail || '' },
+            metadata: { user_id: authUser.uid, plan, user_email: authUser.email },
           }),
         });
-
         const data = await res.json();
-
         if (!res.ok) {
-          return jsonRes({ error: 'Failed to create checkout', details: data }, corsHeaders, 500);
+          return jsonRes({ error: 'Failed to create checkout' }, corsHeaders, 500);
         }
 
         return jsonRes({ checkoutUrl: data.checkout_url, checkoutId: data.id }, corsHeaders);
       } catch (e) {
-        return jsonRes({ error: e.message }, corsHeaders, 500);
+        return jsonRes({ error: 'Checkout creation failed' }, corsHeaders, 500);
       }
     }
 
-    // ========== CHARGILY - VERIFY PAYMENT ==========
+    // ========== CHARGILY - VERIFY PAYMENT (AUTH REQUIRED) ==========
     if (path === '/verify-payment') {
-      const checkoutId = url.searchParams.get('checkout_id');
+      const authUser = await verifyFirebaseToken(
+        request.headers.get('Authorization'),
+        FIREBASE_PROJECT_ID
+      );
+      if (!authUser) {
+        return jsonRes({ error: 'Authentication required' }, corsHeaders, 401);
+      }
 
-      if (!checkoutId) {
-        return jsonRes({ error: 'Missing checkout_id' }, corsHeaders, 400);
+      const checkoutId = url.searchParams.get('checkout_id');
+      if (!checkoutId || checkoutId.length > 100) {
+        return jsonRes({ error: 'Valid checkout_id required' }, corsHeaders, 400);
       }
 
       const PLANS = {
@@ -342,7 +490,7 @@ export default {
       };
 
       try {
-        const res = await fetch(`${CHARGILY_API}/checkouts/${checkoutId}`, {
+        const res = await fetch(`${CHARGILY_API}/checkouts/${encodeURIComponent(checkoutId)}`, {
           headers: { 'Authorization': `Bearer ${CHARGILY_KEY}` },
         });
 
@@ -353,6 +501,11 @@ export default {
         }
 
         const metadata = data.metadata || {};
+
+        if (metadata.user_id !== authUser.uid) {
+          return jsonRes({ error: 'Unauthorized' }, corsHeaders, 403);
+        }
+
         const plan = metadata.plan || 'monthly';
         const planDays = PLANS[plan]?.days || 30;
         const expiresAt = new Date(Date.now() + planDays * 24 * 60 * 60 * 1000).toISOString();
@@ -360,20 +513,16 @@ export default {
         return jsonRes({
           status: data.status,
           plan: metadata.plan,
-          userId: metadata.user_id,
           amount: data.amount,
           expiresAt,
           checkoutId: data.id,
         }, corsHeaders);
       } catch (e) {
-        return jsonRes({ error: e.message }, corsHeaders, 500);
+        return jsonRes({ error: 'Verification failed' }, corsHeaders, 500);
       }
     }
 
-    return jsonRes({
-      error: 'Invalid endpoint',
-      endpoints: ['/geocode', '/places', '/autocomplete', '/directions', '/place-details', '/place-photo', '/ai', '/gemini', '/config', '/create-checkout', '/verify-payment']
-    }, corsHeaders, 404);
+    return jsonRes({ error: 'Not found' }, corsHeaders, 404);
   }
 };
 
@@ -384,6 +533,7 @@ function jsonRes(data, corsHeaders, status = 200) {
     headers: { ...corsHeaders, 'Content-Type': 'application/json' }
   });
 }
+
 function mapCategories(categories) {
   const c = categories.toLowerCase();
   if (c.includes('beach'))
@@ -408,6 +558,7 @@ function mapCategories(categories) {
     return { type: 'tourist_attraction', keyword: 'desert صحراء', filter: null };
   return { type: 'point_of_interest', keyword: categories, filter: null };
 }
+
 const POST_FILTERS = {
   beach: (p) => {
     const types = p.types || [];
@@ -456,6 +607,7 @@ const POST_FILTERS = {
     return types.some(t => validTypes.includes(t));
   },
 };
+
 function extractCity(vicinity) {
   if (!vicinity) return '';
   const parts = vicinity.split(',');
