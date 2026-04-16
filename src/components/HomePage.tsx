@@ -1,8 +1,7 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { motion } from 'motion/react';
 import { MapPin, ChevronRight, Sun, Loader2, Cloud, CloudRain, CloudSun, CloudDrizzle, CloudSnow } from 'lucide-react';
 import { useLocation } from '../context/LocationContext';
-import { WORKER_URL } from '../config/apiKeys';
 import rihlatyLogo from '../logo/rihlaty logo home page.png';
 import beachesImg from '../logo/beache.jpg';
 import natureImg from '../logo/nature.jpg';
@@ -37,12 +36,14 @@ function HomePageContent({
   const [weather, setWeather] = useState<{
     temp: number | null;
     weatherCode: number | null;
-    city: string;
   }>({
     temp: null,
     weatherCode: null,
-    city: ''
   });
+
+  const lastFetchedCoords = useRef<string>('');
+  const retryCount = useRef(0);
+  const MAX_RETRIES = 2;
 
   const translations = {
     ar: {
@@ -54,7 +55,9 @@ function HomePageContent({
       shopping: 'تسوق',
       restaurants: 'مطاعم',
       askAssistant: 'اسأل المساعد الذكي',
-      askQuestion: 'وين نروح اليوم؟'
+      askQuestion: 'وين نروح اليوم؟',
+      locating: 'جاري التحديد...',
+      unknown: 'غير محدد'
     },
     fr: {
       yourLocation: 'Votre position',
@@ -65,7 +68,9 @@ function HomePageContent({
       shopping: 'Shopping',
       restaurants: 'Restaurants',
       askAssistant: 'Demandez à l\'assistant IA',
-      askQuestion: 'Où aller aujourd\'hui ?'
+      askQuestion: 'Où aller aujourd\'hui ?',
+      locating: 'Localisation...',
+      unknown: 'Non déterminé'
     },
     en: {
       yourLocation: 'Your Location',
@@ -76,45 +81,48 @@ function HomePageContent({
       shopping: 'Shopping',
       restaurants: 'Restaurants',
       askAssistant: 'Ask AI Assistant',
-      askQuestion: 'Where to go today?'
+      askQuestion: 'Where to go today?',
+      locating: 'Locating...',
+      unknown: 'Unknown'
     }
   };
   const t = translations[language as keyof typeof translations] || translations.en;
 
   useEffect(() => {
-    const fetchWeather = async () => {
-      if (!userLocation) return;
-      try {
-        const geoResponse = await fetch(
-          `${WORKER_URL}/geocode?lat=${userLocation.lat}&lon=${userLocation.lng}`
-        );
-        let cityName = '';
-        if (geoResponse.ok) {
-          const geoData = await geoResponse.json();
-          cityName = geoData.features[0]?.properties?.city || 
-                     geoData.features[0]?.properties?.state || 
-                     geoData.features[0]?.properties?.name || '';
-        }
+    if (!userLocation) return;
 
+    const coordKey = `${userLocation.lat.toFixed(2)},${userLocation.lng.toFixed(2)}`;
+    if (coordKey === lastFetchedCoords.current) return;
+
+    lastFetchedCoords.current = coordKey;
+    retryCount.current = 0;
+
+    const fetchWeather = async () => {
+      try {
         const weatherResponse = await fetch(
           `https://api.open-meteo.com/v1/forecast?latitude=${userLocation.lat}&longitude=${userLocation.lng}&current=temperature_2m,weather_code&timezone=auto`
         );
 
-        if (weatherResponse.ok) {
-          const data = await weatherResponse.json();
+        if (!weatherResponse.ok) throw new Error(`Weather API ${weatherResponse.status}`);
+
+        const data = await weatherResponse.json();
+        if (data.current?.temperature_2m != null && data.current?.weather_code != null) {
           setWeather({
             temp: Math.round(data.current.temperature_2m),
             weatherCode: data.current.weather_code,
-            city: cityName
           });
         }
       } catch (error) {
         console.error('Error fetching weather:', error);
+        if (retryCount.current < MAX_RETRIES) {
+          retryCount.current++;
+          setTimeout(fetchWeather, 3000 * retryCount.current);
+        }
       }
     };
 
     fetchWeather();
-  }, [userLocation]);
+  }, [userLocation?.lat, userLocation?.lng]);
 
   const getWeatherIcon = (code: number | null) => {
     if (code === null) return null;
@@ -194,13 +202,11 @@ function HomePageContent({
                 <p className="text-[11px] text-gray-400 dark:text-gray-500 font-medium uppercase tracking-wider mb-0.5">{t.yourLocation}</p>
                 <p className="text-sm font-semibold text-gray-800 dark:text-gray-100 truncate">
                   {locationLoading ? (
-                    <span className="text-teal-600 dark:text-teal-400">جاري التحديد...</span>
+                    <span className="text-teal-600 dark:text-teal-400">{t.locating}</span>
                   ) : userLocation?.address ? (
                     userLocation.address
-                  ) : weather.city ? (
-                    weather.city
                   ) : (
-                    <span className="text-gray-400 dark:text-gray-500">غير محدد</span>
+                    <span className="text-gray-400 dark:text-gray-500">{t.unknown}</span>
                   )}
                 </p>
               </div>

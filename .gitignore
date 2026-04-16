@@ -24,12 +24,6 @@ dist-ssr
 google-services.json
 GoogleService-Info.plist
 .vercel
-.vercel
-.env*.local
-
-# Security audit / pentest artifacts (NEVER commit)
 rihlaty/
 .claude/
-
-# Generator scripts
 generate-*.cjs

@@ -237,16 +237,28 @@ export function ExplorePage({ language, destination, onClearDestination }: Explo
 
     try {
       const response = await fetch(
-        `${WORKER_URL}/places?categories=${categoryMap[category]}&filter=circle:${userLocation.lng},${userLocation.lat},20000&bias=proximity:${userLocation.lng},${userLocation.lat}&limit=1`
+        `${WORKER_URL}/places?categories=${categoryMap[category]}&filter=circle:${userLocation.lng},${userLocation.lat},15000&bias=proximity:${userLocation.lng},${userLocation.lat}&limit=10`
       );
       const data = await response.json();
 
       if (data.features && data.features.length > 0) {
-        const place = data.features[0];
+        let closest = data.features[0];
+        let minDist = Infinity;
+
+        for (const f of data.features) {
+          const plat = f.geometry.coordinates[1];
+          const plng = f.geometry.coordinates[0];
+          const d = Math.pow(plat - userLocation.lat, 2) + Math.pow(plng - userLocation.lng, 2);
+          if (d < minDist) {
+            minDist = d;
+            closest = f;
+          }
+        }
+
         setLocalDestination({
-          name: place.properties.name || place.properties.address_line1 || category,
-          lat: place.geometry.coordinates[1],
-          lng: place.geometry.coordinates[0]
+          name: closest.properties.name || closest.properties.address_line1 || category,
+          lat: closest.geometry.coordinates[1],
+          lng: closest.geometry.coordinates[0]
         });
       }
     } catch (error) {

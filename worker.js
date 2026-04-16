@@ -9,6 +9,7 @@ const ALLOWED_ORIGINS = [
   'http://localhost:4173',
   'capacitor://localhost',
   'http://localhost',
+  'https://localhost',
 ];
 const rateLimitMap = new Map();
 const RATE_LIMIT_WINDOW = 60000;
