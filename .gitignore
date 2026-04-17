@@ -27,3 +27,7 @@ GoogleService-Info.plist
 rihlaty/
 .claude/
 generate-*.cjs
+*.jks
+*.keystore
+android/key.properties
+android/app/upload-keystore.jks
