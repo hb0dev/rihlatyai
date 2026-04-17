@@ -510,7 +510,25 @@ export default {
         const plan = metadata.plan || 'monthly';
         const planDays = PLANS[plan]?.days || 30;
         const expiresAt = new Date(Date.now() + planDays * 24 * 60 * 60 * 1000).toISOString();
-
+        if (data.status === 'paid') {
+          try {
+            await writeSubscriptionToFirestore(env, authUser.uid, {
+              plan: 'pro',
+              billingPeriod: plan,
+              chargilyCheckoutId: data.id,
+              startedAt: new Date().toISOString(),
+              expiresAt,
+              amount: data.amount,
+            });
+          } catch (werr) {
+            console.error('Subscription write failed:', werr?.message || werr);
+            return jsonRes(
+              { error: 'Payment verified but subscription activation failed. Please contact support.' },
+              corsHeaders,
+              500
+            );
+          }
+        }
         return jsonRes({
           status: data.status,
           plan: metadata.plan,
@@ -526,6 +544,7 @@ export default {
     return jsonRes({ error: 'Not found' }, corsHeaders, 404);
   }
 };
+
 
 // ==================== HELPER FUNCTIONS ====================
 function jsonRes(data, corsHeaders, status = 200) {
@@ -613,4 +632,151 @@ function extractCity(vicinity) {
   if (!vicinity) return '';
   const parts = vicinity.split(',');
   return parts.length > 1 ? parts[parts.length - 1].trim() : vicinity.trim();
+}
+
+let _googleAccessTokenCache = null;
+
+function b64urlEncode(input) {
+  let bytes;
+  if (typeof input === 'string') {
+    bytes = new TextEncoder().encode(input);
+  } else {
+    bytes = input;
+  }
+  let str = '';
+  for (let i = 0; i < bytes.length; i++) str += String.fromCharCode(bytes[i]);
+  return btoa(str).replace(/\+/g, '-').replace(/\//g, '_').replace(/=+$/, '');
+}
+
+async function importServiceAccountKey(pem) {
+  const cleaned = pem
+    .replace(/\\n/g, '\n')
+    .replace(/-----BEGIN PRIVATE KEY-----/, '')
+    .replace(/-----END PRIVATE KEY-----/, '')
+    .replace(/\s+/g, '');
+  const binary = Uint8Array.from(atob(cleaned), (c) => c.charCodeAt(0));
+  return crypto.subtle.importKey(
+    'pkcs8',
+    binary,
+    { name: 'RSASSA-PKCS1-v1_5', hash: 'SHA-256' },
+    false,
+    ['sign']
+  );
+}
+
+async function getGoogleAccessToken(env) {
+  const now = Date.now();
+  if (_googleAccessTokenCache && _googleAccessTokenCache.expiresAt > now + 60_000) {
+    return _googleAccessTokenCache.token;
+  }
+
+  const clientEmail = env.FIREBASE_CLIENT_EMAIL;
+  const privateKeyPem = env.FIREBASE_PRIVATE_KEY;
+  if (!clientEmail || !privateKeyPem) {
+    throw new Error('Firebase service account not configured (FIREBASE_CLIENT_EMAIL / FIREBASE_PRIVATE_KEY)');
+  }
+
+  const iat = Math.floor(now / 1000);
+  const header = { alg: 'RS256', typ: 'JWT' };
+  const payload = {
+    iss: clientEmail,
+    scope: 'https://www.googleapis.com/auth/datastore',
+    aud: 'https://oauth2.googleapis.com/token',
+    iat,
+    exp: iat + 3600,
+  };
+
+  const signingInput = `${b64urlEncode(JSON.stringify(header))}.${b64urlEncode(JSON.stringify(payload))}`;
+  const key = await importServiceAccountKey(privateKeyPem);
+  const sig = await crypto.subtle.sign(
+    'RSASSA-PKCS1-v1_5',
+    key,
+    new TextEncoder().encode(signingInput)
+  );
+  const jwt = `${signingInput}.${b64urlEncode(new Uint8Array(sig))}`;
+
+  const tokenRes = await fetch('https://oauth2.googleapis.com/token', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+    body: `grant_type=${encodeURIComponent('urn:ietf:params:oauth:grant-type:jwt-bearer')}&assertion=${jwt}`,
+  });
+
+  if (!tokenRes.ok) {
+    const txt = await tokenRes.text();
+    throw new Error(`Token exchange failed (${tokenRes.status}): ${txt.slice(0, 200)}`);
+  }
+
+  const tokenData = await tokenRes.json();
+  _googleAccessTokenCache = {
+    token: tokenData.access_token,
+    expiresAt: now + (tokenData.expires_in || 3600) * 1000,
+  };
+  return tokenData.access_token;
+}
+
+// Minimal JSON -> Firestore REST document encoder (only covers the types
+// we actually use: string, number, map).
+function toFirestoreValue(v) {
+  if (v === null || v === undefined) return { nullValue: null };
+  if (typeof v === 'string') return { stringValue: v };
+  if (typeof v === 'boolean') return { booleanValue: v };
+  if (typeof v === 'number') {
+    return Number.isInteger(v)
+      ? { integerValue: v.toString() }
+      : { doubleValue: v };
+  }
+  if (typeof v === 'object') {
+    const fields = {};
+    for (const k of Object.keys(v)) fields[k] = toFirestoreValue(v[k]);
+    return { mapValue: { fields } };
+  }
+  return { stringValue: String(v) };
+}
+
+async function writeSubscriptionToFirestore(env, uid, subscription) {
+  const projectId = env.FIREBASE_PROJECT_ID;
+  if (!projectId) throw new Error('FIREBASE_PROJECT_ID missing');
+
+  const accessToken = await getGoogleAccessToken(env);
+  const url =
+    `https://firestore.googleapis.com/v1/projects/${encodeURIComponent(projectId)}` +
+    `/databases/(default)/documents/users/${encodeURIComponent(uid)}` +
+    `?updateMask.fieldPaths=subscription&currentDocument.exists=true`;
+
+  const body = {
+    fields: {
+      subscription: toFirestoreValue(subscription),
+    },
+  };
+
+  let res = await fetch(url, {
+    method: 'PATCH',
+    headers: {
+      Authorization: `Bearer ${accessToken}`,
+      'Content-Type': 'application/json',
+    },
+    body: JSON.stringify(body),
+  });
+
+  // If the user document doesn't exist yet, create it with just the
+  // subscription field (drop the currentDocument.exists guard).
+  if (res.status === 404) {
+    const createUrl =
+      `https://firestore.googleapis.com/v1/projects/${encodeURIComponent(projectId)}` +
+      `/databases/(default)/documents/users/${encodeURIComponent(uid)}` +
+      `?updateMask.fieldPaths=subscription`;
+    res = await fetch(createUrl, {
+      method: 'PATCH',
+      headers: {
+        Authorization: `Bearer ${accessToken}`,
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify(body),
+    });
+  }
+
+  if (!res.ok) {
+    const txt = await res.text();
+    throw new Error(`Firestore write failed (${res.status}): ${txt.slice(0, 200)}`);
+  }
 }

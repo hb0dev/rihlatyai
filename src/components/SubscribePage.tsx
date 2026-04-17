@@ -3,8 +3,6 @@ import { motion, AnimatePresence } from 'motion/react';
 import { Check, X, MessageSquare, Image, Zap, ArrowRight, Loader2, CheckCircle2, XCircle, Shield } from 'lucide-react';
 import { useAuth } from '../context/AuthContext';
 import { useSubscription } from '../context/SubscriptionContext';
-import { doc, setDoc } from 'firebase/firestore';
-import { db } from '../config/firebase';
 import { WORKER_URL } from '../config/apiKeys';
 import logo from '../logo/rihlaty logo.png';
 import chargilyLogo from '../logo/chargily.svg';
@@ -57,21 +55,9 @@ export function SubscribePage({ language, onNavigateBack }: SubscribePageProps) 
       const data = await res.json();
 
       if (data.status === 'paid') {
-        try {
-          await setDoc(doc(db, 'users', user.uid), {
-            subscription: {
-              plan: 'pro',
-              billingPeriod: data.plan,
-              chargilyCheckoutId: checkoutId,
-              startedAt: new Date().toISOString(),
-              expiresAt: data.expiresAt,
-              amount: data.amount,
-            },
-          }, { merge: true });
-        } catch (fbErr: any) {
-          setError(`Firestore: ${fbErr?.message || 'update failed'}`);
-          return;
-        }
+        // Subscription is written to Firestore server-side by the Worker
+        // (using a Firebase service account) so it cannot be forged by the
+        // client. We only need to refresh local state and clean up.
         setPaymentSuccess(true);
         refreshSubscription();
         localStorage.removeItem('rihlaty_checkout_id');
