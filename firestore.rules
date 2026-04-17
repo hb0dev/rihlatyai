@@ -1,0 +1,97 @@
+rules_version = '2';
+
+// ============================================================================
+// Rihlaty Firestore Security Rules
+// ============================================================================
+// Deploy:  firebase deploy --only firestore:rules
+// Test:    https://firebase.google.com/docs/firestore/security/test-rules-emulator
+// ============================================================================
+
+service cloud.firestore {
+  match /databases/{database}/documents {
+
+    // --------------------------------------------------------------------
+    // users/{uid}
+    // --------------------------------------------------------------------
+    match /users/{uid} {
+
+      // Only the owner can read their own user document.
+      allow read: if request.auth != null && request.auth.uid == uid;
+
+      // Create: only the authenticated user can create their own doc.
+      // Must NOT contain a 'subscription' field on initial create
+      // (subscriptions are granted only after a verified payment).
+      allow create: if request.auth != null
+        && request.auth.uid == uid
+        && !('subscription' in request.resource.data);
+
+      // Update: owner can update profile fields, BUT the 'subscription'
+      // field is immutable from the client side.
+      //
+      // If a client tries to add/change/remove the 'subscription' field,
+      // it is rejected. Subscription must be written server-side via the
+      // Cloudflare Worker `/verify-payment` endpoint (see recommendation
+      // in README / worker.js).
+      allow update: if request.auth != null
+        && request.auth.uid == uid
+        && (
+          // Case A: the document had no subscription before AND still has none → OK
+          (!('subscription' in resource.data) && !('subscription' in request.resource.data))
+          ||
+          // Case B: subscription existed before AND is unchanged → OK
+          ('subscription' in resource.data
+            && 'subscription' in request.resource.data
+            && request.resource.data.subscription == resource.data.subscription)
+        );
+
+      // No one deletes users from the client.
+      allow delete: if request.auth != null && request.auth.uid == uid;
+
+      // ------------------------------------------------------------------
+      // users/{uid}/usage/{YYYY-MM-DD}
+      //
+      // Daily AI message counter. Used to enforce free/pro daily limits.
+      // The counter is INCREMENT-ONLY by +1 per write. Clients cannot
+      // reset it to zero, set it negative, or skip ahead.
+      // ------------------------------------------------------------------
+      match /usage/{dateStr} {
+
+        allow read: if request.auth != null && request.auth.uid == uid;
+
+        // First write of the day: count must be exactly 1
+        allow create: if request.auth != null
+          && request.auth.uid == uid
+          && request.resource.data.count is int
+          && request.resource.data.count == 1
+          && request.resource.data.date is string
+          && request.resource.data.date == dateStr;
+
+        // Subsequent writes: count must increment by exactly +1
+        // and must not exceed a hard cap (defense in depth vs. runaway).
+        allow update: if request.auth != null
+          && request.auth.uid == uid
+          && request.resource.data.count is int
+          && request.resource.data.count == resource.data.count + 1
+          && request.resource.data.count <= 1000
+          && request.resource.data.date == resource.data.date;
+
+        // Counters can never be deleted by clients.
+        allow delete: if false;
+      }
+
+      // ------------------------------------------------------------------
+      // users/{uid}/conversations/{convId}
+      //
+      // AI chat history. Owner has full read/write access.
+      // ------------------------------------------------------------------
+      match /conversations/{convId} {
+        allow read, write: if request.auth != null && request.auth.uid == uid;
+      }
+    }
+
+    // Default deny for any other path.
+    match /{document=**} {
+      allow read, write: if false;
+    }
+  }
+}
