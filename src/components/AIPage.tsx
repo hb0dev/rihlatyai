@@ -61,7 +61,7 @@ function TokenChip({
   const isLow = smaller <= lowThreshold;
 
   return (
-    <div className="relative">
+    <>
       <motion.button
         whileTap={{ scale: 0.95 }}
         onClick={() => setOpen(v => !v)}
@@ -75,29 +75,40 @@ function TokenChip({
         <span className="text-[11px] font-bold tabular-nums" dir="ltr">{fmt(smaller)}</span>
       </motion.button>
 
+      {/* Portal-less overlay: fixed to the viewport so it always escapes the
+          header's overflow and stacks above everything, including the chat. */}
       <AnimatePresence>
         {open && (
           <>
-            <div
+            <motion.div
+              initial={{ opacity: 0 }}
+              animate={{ opacity: 1 }}
+              exit={{ opacity: 0 }}
+              transition={{ duration: 0.15 }}
               onClick={() => setOpen(false)}
-              className="fixed inset-0 z-30"
+              className="fixed inset-0 bg-black/30 z-[60]"
             />
             <motion.div
-              initial={{ opacity: 0, y: -4, scale: 0.95 }}
+              initial={{ opacity: 0, y: -8, scale: 0.96 }}
               animate={{ opacity: 1, y: 0, scale: 1 }}
-              exit={{ opacity: 0, y: -4, scale: 0.95 }}
-              transition={{ duration: 0.15 }}
-              className="absolute top-full right-0 mt-2 w-64 bg-white dark:bg-dark-card rounded-2xl shadow-elevation-3 border border-gray-100 dark:border-gray-700/50 p-3 z-40"
+              exit={{ opacity: 0, y: -8, scale: 0.96 }}
+              transition={{ duration: 0.18 }}
+              className="fixed top-24 left-4 right-4 max-w-sm mx-auto bg-white dark:bg-dark-card rounded-2xl shadow-elevation-3 border border-gray-100 dark:border-gray-700/50 p-4 z-[70]"
             >
-              <div className="space-y-3">
+              <p className="text-[11px] font-bold uppercase tracking-wider text-gray-400 dark:text-gray-500 mb-3">
+                {/* Header kept in English-agnostic form to avoid importing i18n here */}
+                Tokens
+              </p>
+
+              <div className="space-y-4">
                 <div>
-                  <p className="text-[10px] font-bold uppercase tracking-wider text-gray-400 dark:text-gray-500 mb-1">Kimi K2.5</p>
+                  <p className="text-[12px] font-bold text-gray-700 dark:text-gray-200 mb-2">Kimi K2.5</p>
                   <TokenRow label={inputLabel} used={usage.kimiInput} limit={limits.kimiInput} />
                   <TokenRow label={outputLabel} used={usage.kimiOutput} limit={limits.kimiOutput} />
                 </div>
                 {isPro && (
                   <div>
-                    <p className="text-[10px] font-bold uppercase tracking-wider text-gray-400 dark:text-gray-500 mb-1">K2.5 Thinking</p>
+                    <p className="text-[12px] font-bold text-gray-700 dark:text-gray-200 mb-2">K2.5 Thinking</p>
                     <TokenRow label={inputLabel} used={usage.thinkingInput} limit={limits.thinkingInput} />
                     <TokenRow label={outputLabel} used={usage.thinkingOutput} limit={limits.thinkingOutput} />
                   </div>
@@ -107,7 +118,7 @@ function TokenChip({
           </>
         )}
       </AnimatePresence>
-    </div>
+    </>
   );
 }
 
