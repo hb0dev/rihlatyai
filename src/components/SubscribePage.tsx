@@ -312,7 +312,7 @@ export function SubscribePage({ language, onNavigateBack }: SubscribePageProps) 
                     </p>
                     {period === 'yearly' && (
                       <p className={`text-xs mt-1 ${active ? 'text-teal-400' : 'text-gray-500'}`}>
-                        ≈ $6.99/{t.monthShort}
+                        ≈ $6.66/{t.monthShort}
                       </p>
                     )}
                   </button>

@@ -382,6 +382,7 @@ export function AIPage({ language, onNavigateBack }: AIPageProps) {
   const [requestingLocation, setRequestingLocation] = useState(false);
   const [selectedModel, setSelectedModel] = useState<AIModel>('kimi');
   const [useWebSearch, setUseWebSearch] = useState(false);
+  const [modelLockedToast, setModelLockedToast] = useState(false);
   const [sidebarOpen, setSidebarOpen] = useState(false);
   const [savedConversations, setSavedConversations] = useState<SavedConversation[]>([]);
   const [currentConversationId, setCurrentConversationId] = useState<string | null>(null);
@@ -490,10 +491,22 @@ export function AIPage({ language, onNavigateBack }: AIPageProps) {
 
   // Load a saved conversation
   const loadConversation = (conv: SavedConversation) => {
-    setMessages(conv.messages.map(m => ({ ...m, timestamp: new Date(m.timestamp) })));
+    const hydratedMessages = conv.messages.map(m => ({ ...m, timestamp: new Date(m.timestamp) }));
+    setMessages(hydratedMessages);
     setConversationHistory(conv.history);
     setCurrentConversationId(conv.id);
     setSidebarOpen(false);
+
+    // Snap the model selector to whichever model this conversation was
+    // started with, so the (now locked) segmented control matches the
+    // conversation's history. Fall back to 'kimi' for legacy conversations
+    // saved before the model was tracked.
+    const firstAiMessage = hydratedMessages.find(m => m.type === 'ai' && m.model);
+    if (firstAiMessage?.model) {
+      setSelectedModel(firstAiMessage.model);
+    } else {
+      setSelectedModel('kimi');
+    }
   };
   const deleteConversation = async (id: string, e: React.MouseEvent) => {
     e.stopPropagation();
@@ -619,6 +632,7 @@ export function AIPage({ language, onNavigateBack }: AIPageProps) {
       thinkingTokens: 'تفكير عميق',
       inputTokens: 'إدخال',
       outputTokens: 'إخراج',
+      modelLocked: 'لا يمكن تغيير النموذج وسط المحادثة. ابدأ محادثة جديدة.',
     },
     fr: {
       title: 'RIHLATY-AI',
@@ -651,6 +665,7 @@ export function AIPage({ language, onNavigateBack }: AIPageProps) {
       thinkingTokens: 'Raisonnement',
       inputTokens: 'Entrée',
       outputTokens: 'Sortie',
+      modelLocked: 'Impossible de changer de modèle en cours de discussion. Lancez une nouvelle discussion.',
     },
     en: {
       title: 'RIHLATY-AI',
@@ -683,11 +698,13 @@ export function AIPage({ language, onNavigateBack }: AIPageProps) {
       thinkingTokens: 'Deep thinking',
       inputTokens: 'Input',
       outputTokens: 'Output',
+      modelLocked: 'Model cannot be changed mid-conversation. Start a new chat.',
     }
   };
 
   const t = translations[language as keyof typeof translations] || translations.en;
   const quickSuggestions = getQuickSuggestions(language);
+  const conversationLocked = messages.length > 0;
 
   useEffect(() => {
     if (chatContainerRef.current) {
@@ -696,10 +713,6 @@ export function AIPage({ language, onNavigateBack }: AIPageProps) {
   }, [messages]);
   const handleSendMessage = async (text: string) => {
     if (!text.trim() || isLoading) return;
-
-    // Pre-flight quota check. The Worker also enforces this server-side,
-    // but blocking here avoids a pointless round-trip and shows the upgrade
-    // modal straight away.
     if (selectedModel === 'kimi-thinking' && !canSendThinking) {
       setShowUpgradeModal(true);
       return;
@@ -966,20 +979,30 @@ export function AIPage({ language, onNavigateBack }: AIPageProps) {
 
         {/* Model segmented control + Web search toggle */}
         <div className="mt-4 flex items-center gap-2">
-          <div className="flex-1 bg-white/10 backdrop-blur-sm rounded-xl p-1 flex items-center gap-1">
+          <div className={`flex-1 bg-white/10 backdrop-blur-sm rounded-xl p-1 flex items-center gap-1 ${
+            conversationLocked ? 'opacity-70' : ''
+          }`}>
             {[
-              { id: 'kimi' as AIModel, label: t.modelKimi, icon: Sparkles, locked: false },
-              { id: 'kimi-thinking' as AIModel, label: t.modelKimiThinking, icon: Brain, locked: !isPro },
+              { id: 'kimi' as AIModel, label: t.modelKimi, icon: Sparkles, proLocked: false },
+              { id: 'kimi-thinking' as AIModel, label: t.modelKimiThinking, icon: Brain, proLocked: !isPro },
             ].map((m) => {
               const Icon = m.icon;
               const active = selectedModel === m.id;
+              // Lock switching once the conversation has started, but keep the
+              // Pro upgrade nudge reachable from the disabled option.
+              const disabledByConversation = conversationLocked && !active;
               return (
                 <motion.button
                   key={m.id}
-                  whileTap={{ scale: 0.97 }}
+                  whileTap={{ scale: disabledByConversation ? 1 : 0.97 }}
                   onClick={() => {
-                    if (m.locked) {
+                    if (m.proLocked) {
                       setShowUpgradeModal(true);
+                      return;
+                    }
+                    if (disabledByConversation) {
+                      setModelLockedToast(true);
+                      window.setTimeout(() => setModelLockedToast(false), 2600);
                       return;
                     }
                     setSelectedModel(m.id);
@@ -987,10 +1010,14 @@ export function AIPage({ language, onNavigateBack }: AIPageProps) {
                   className={`flex-1 flex items-center justify-center gap-1.5 px-2 py-2 rounded-lg transition-colors ${
                     active
                       ? 'bg-white text-teal-600 shadow-elevation-1'
-                      : 'text-white/80 hover:bg-white/10'
+                      : disabledByConversation
+                        ? 'text-white/40 cursor-not-allowed'
+                        : 'text-white/80 hover:bg-white/10'
                   }`}
                 >
-                  {m.locked ? (
+                  {m.proLocked ? (
+                    <Lock className="w-3.5 h-3.5 flex-shrink-0" strokeWidth={2.5} />
+                  ) : disabledByConversation ? (
                     <Lock className="w-3.5 h-3.5 flex-shrink-0" strokeWidth={2.5} />
                   ) : (
                     <Icon className="w-3.5 h-3.5 flex-shrink-0" strokeWidth={2.5} />
@@ -1017,6 +1044,22 @@ export function AIPage({ language, onNavigateBack }: AIPageProps) {
           </motion.button>
         </div>
       </div>
+
+      {/* Model-locked toast */}
+      <AnimatePresence>
+        {modelLockedToast && (
+          <motion.div
+            initial={{ opacity: 0, y: -10, scale: 0.95 }}
+            animate={{ opacity: 1, y: 0, scale: 1 }}
+            exit={{ opacity: 0, y: -10, scale: 0.95 }}
+            transition={{ duration: 0.2 }}
+            className="fixed top-4 left-4 right-4 max-w-sm mx-auto z-[80] bg-gray-900 dark:bg-white text-white dark:text-gray-900 rounded-2xl px-4 py-3 shadow-elevation-3 flex items-start gap-3"
+          >
+            <Lock className="w-4 h-4 flex-shrink-0 mt-0.5 text-teal-400 dark:text-teal-600" strokeWidth={2.5} />
+            <p className="text-[13px] leading-snug flex-1" dir="auto">{t.modelLocked}</p>
+          </motion.div>
+        )}
+      </AnimatePresence>
 
       {/* Chat Container */}
       <div 
