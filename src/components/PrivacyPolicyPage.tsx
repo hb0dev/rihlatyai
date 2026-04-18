@@ -1,5 +1,5 @@
 import { motion } from 'motion/react';
-import { ArrowRight, Shield, MapPin, Bot, Lock, Trash2, Mail, CreditCard } from 'lucide-react';
+import { ArrowRight, Shield, MapPin, Bot, Lock, Trash2, Mail, CreditCard, BarChart3 } from 'lucide-react';
 import logo from '../logo/rihlaty logo.png';
 
 interface PrivacyPolicyPageProps {
@@ -12,7 +12,7 @@ export function PrivacyPolicyPage({ language, onNavigateBack }: PrivacyPolicyPag
     ar: {
       title: 'سياسة الخصوصية',
       subtitle: 'تطبيق رحلتي - Rihlaty',
-      lastUpdated: 'آخر تحديث: مارس 2026',
+      lastUpdated: 'آخر تحديث: أبريل 2026 · الإصدار 2.1.0',
       back: 'رجوع',
       intro: 'نحن في تطبيق رحلتي نحترم خصوصيتك ونلتزم بحماية بياناتك الشخصية. توضح هذه السياسة كيفية جمع واستخدام وحماية معلوماتك.',
       sections: [
@@ -29,26 +29,35 @@ export function PrivacyPolicyPage({ language, onNavigateBack }: PrivacyPolicyPag
         },
         {
           icon: 'ai',
-          title: 'المساعد الذكي (AI)',
+          title: 'المساعد الذكي (Kimi K2.5)',
           content: [
-            'محادثاتك مع المساعد الذكي تُحفظ في حسابك الشخصي',
-            'عند حذف محادثة، يتم إخفاؤها من واجهتك وقد تبقى نسخة مؤرشفة لفترة محدودة لأغراض تقنية وأمنية، ثم يتم حذفها نهائياً',
-            'نستخدم محادثات المساعد الذكي فقط لتقديم الخدمة وتحسين جودة الردود',
-            'قد نحلل البيانات بشكل مجمّع ومجهول الهوية لأغراض تحسين الأداء والخدمة',
-            'لا نستخدم محادثاتك لتدريب نماذج ذكاء اصطناعي مخصصة بدون موافقتك الصريحة',
-            'نستخدم خدمة OpenRouter لمعالجة الردود',
-            'المستخدمون المجانيون: 10 رسائل يومياً، مشتركو Pro: رسائل غير محدودة',
-            'لا نبيع بياناتك أو محادثاتك لأطراف ثالثة'
+            'نستخدم نماذج Moonshot AI — Kimi K2.5 (للجميع) و Kimi K2.5 Thinking (لمشتركي Pro) — عبر خدمة الوساطة OpenRouter',
+            'عند إرسال رسالة: تُنقَل رسالتك، موقعك التقريبي، وقائمة مختصرة بالأماكن القريبة إلى OpenRouter ثم إلى Moonshot AI لتوليد الرد فقط، دون حفظها لدى هذه الأطراف لأغراض التدريب',
+            'عند تفعيل خاصية "البحث في الويب" يتم استعلام محرك بحث خارجي (Exa عبر OpenRouter) لإحضار مصادر محدّثة، وتُعرَض لك روابطها ضمن الرد',
+            'محادثاتك مع المساعد الذكي تُحفظ في حسابك على Firestore وتبقى خاصة بك وحدك',
+            'عند حذف محادثة يتم إخفاؤها فوراً من واجهتك، ثم تُحذف نهائياً بعد فترة أرشفة قصيرة',
+            'لا نستخدم محادثاتك لتدريب نماذج ذكاء اصطناعي مخصصة، ولا نبيع بياناتك أو محادثاتك لأطراف ثالثة'
+          ]
+        },
+        {
+          icon: 'tokens',
+          title: 'حصص التوكنز الشهرية',
+          content: [
+            'خطة Free: 60 ألف توكن إدخال + 40 ألف توكن إخراج شهرياً لنموذج Kimi K2.5 (تقريباً 80 رسالة)',
+            'خطة Pro: 800 ألف توكن إدخال + 700 ألف توكن إخراج شهرياً لـ Kimi K2.5، بالإضافة إلى 150 ألف + 150 ألف لنموذج K2.5 Thinking',
+            'تُسجَّل هذه الأرقام فقط كمجاميع شهرية في وثيقة محميّة على Firestore ولا تحتوي على نص محادثاتك',
+            'يُعاد ضبط العدّاد تلقائياً في أول كل شهر ميلادي (UTC)',
+            'الكتابة إلى عدّاد التوكنز تتم حصراً عبر خادمنا الآمن (Cloudflare Worker) حتى لا يتمكن أي طرف من التلاعب بها'
           ]
         },
         {
           icon: 'payment',
           title: 'الدفع والاشتراكات',
           content: [
-            'نقدم خطة مجانية وخطة Pro مدفوعة (شهرية أو سنوية)',
+            'نقدم خطة مجانية وخطة Pro مدفوعة: 6.99$ / 1,800 د.ج شهرياً، أو 79.99$ / 19,900 د.ج سنوياً',
             'يتم الدفع عبر بوابة Chargily Pay الآمنة (تدعم بطاقات CIB و EDAHABIA)',
             'لا نخزّن بيانات بطاقتك البنكية في خوادمنا - تتم المعالجة بالكامل عبر Chargily',
-            'التحقق من الدفع يتم عبر خادم آمن (Server-side) لحماية حسابك',
+            'التحقق من الدفع وتفعيل الاشتراك يتمّان حصرياً عبر خادم آمن (Server-side) باستخدام حساب خدمة Firebase، لحماية حسابك',
             'يمكنك إلغاء اشتراكك في أي وقت، ويبقى فعالاً حتى انتهاء الفترة المدفوعة',
             'نحفظ فقط: نوع الاشتراك وتاريخ الانتهاء في حسابك'
           ]
@@ -57,11 +66,11 @@ export function PrivacyPolicyPage({ language, onNavigateBack }: PrivacyPolicyPag
           icon: 'data',
           title: 'البيانات الشخصية',
           content: [
-            'نحفظ فقط: اسمك الكامل، بريدك الإلكتروني، وصورتك من Google',
-            'بياناتك محمية بقواعد أمان Firebase من Google',
-            'نستخدم تشفير SSL/TLS لجميع الاتصالات',
+            'نحفظ فقط: اسمك الكامل، بريدك الإلكتروني، صورتك من Google، وحالة اشتراكك',
+            'بياناتك محمية بقواعد أمان Firebase من Google وبتشفير SSL/TLS لجميع الاتصالات',
             'لا نخزّن معلومات بنكية حساسة مثل أرقام البطاقات أو كلمات المرور',
-            'جميع طلبات API تمر عبر خادم وسيط آمن (Cloudflare Worker)'
+            'جميع طلبات API (الخرائط، المساعد الذكي، الدفع) تمر عبر خادم وسيط آمن (Cloudflare Worker)',
+            'مفاتيح مزوّدي الخدمات الخارجية (Google Maps، OpenRouter، Chargily، Firebase Admin) محفوظة لدى الخادم فقط ولا تصل إلى تطبيقك أو جهازك'
           ]
         },
         {
@@ -88,7 +97,7 @@ export function PrivacyPolicyPage({ language, onNavigateBack }: PrivacyPolicyPag
     fr: {
       title: 'Politique de Confidentialité',
       subtitle: 'Application Rihlaty',
-      lastUpdated: 'Dernière mise à jour: Mars 2026',
+      lastUpdated: 'Dernière mise à jour: Avril 2026 · Version 2.1.0',
       back: 'Retour',
       intro: 'Chez Rihlaty, nous respectons votre vie privée et nous engageons à protéger vos données personnelles. Cette politique explique comment nous collectons, utilisons et protégeons vos informations.',
       sections: [
@@ -105,26 +114,35 @@ export function PrivacyPolicyPage({ language, onNavigateBack }: PrivacyPolicyPag
         },
         {
           icon: 'ai',
-          title: 'Assistant IA',
+          title: 'Assistant IA (Kimi K2.5)',
           content: [
-            'Vos conversations avec l\'assistant sont sauvegardées dans votre compte',
-            'Lorsque vous supprimez une conversation, elle disparaît de votre interface et une copie archivée peut être conservée pour une durée limitée à des fins techniques et de sécurité, puis supprimée définitivement',
-            'Nous utilisons les conversations uniquement pour fournir le service et améliorer la qualité des réponses',
-            'Nous pouvons analyser les données de manière agrégée et anonyme pour améliorer les performances',
-            'Nous n\'utilisons pas vos conversations pour entraîner des modèles d\'IA personnalisés sans votre consentement explicite',
-            'Nous utilisons OpenRouter pour le traitement des réponses',
-            'Utilisateurs gratuits: 10 messages/jour, abonnés Pro: messages illimités',
-            'Nous ne vendons pas vos données à des tiers'
+            'Nous utilisons les modèles de Moonshot AI — Kimi K2.5 (pour tous) et Kimi K2.5 Thinking (abonnés Pro) — via le service intermédiaire OpenRouter',
+            'Lors de l\'envoi d\'un message, votre requête, votre position approximative et une courte liste de lieux proches sont transmises à OpenRouter puis à Moonshot AI uniquement pour générer la réponse — elles ne sont pas stockées à des fins d\'entraînement',
+            'Lorsque la « recherche web » est activée, une requête est envoyée à un moteur externe (Exa via OpenRouter) pour récupérer des sources à jour dont les liens apparaissent dans la réponse',
+            'Vos conversations avec l\'assistant sont sauvegardées dans votre compte sur Firestore et restent privées',
+            'Lorsque vous supprimez une conversation, elle disparaît immédiatement de votre interface puis est définitivement supprimée après une courte période d\'archivage',
+            'Nous n\'utilisons pas vos conversations pour entraîner des modèles d\'IA personnalisés et nous ne les vendons pas à des tiers'
+          ]
+        },
+        {
+          icon: 'tokens',
+          title: 'Quotas mensuels de tokens',
+          content: [
+            'Plan Free : 60 000 tokens d\'entrée + 40 000 tokens de sortie par mois pour Kimi K2.5 (environ 80 messages)',
+            'Plan Pro : 800 000 + 700 000 tokens par mois pour Kimi K2.5, plus 150 000 + 150 000 tokens pour Kimi K2.5 Thinking',
+            'Ces chiffres sont stockés uniquement sous forme de totaux mensuels dans un document sécurisé sur Firestore, et ne contiennent pas le texte de vos conversations',
+            'Le compteur est remis à zéro automatiquement le premier jour de chaque mois calendaire (UTC)',
+            'L\'écriture du compteur est réservée à notre serveur sécurisé (Cloudflare Worker) pour empêcher toute manipulation côté client'
           ]
         },
         {
           icon: 'payment',
           title: 'Paiement et Abonnements',
           content: [
-            'Nous proposons un plan gratuit et un plan Pro payant (mensuel ou annuel)',
+            'Nous proposons un plan gratuit et un plan Pro payant : 6,99 $ / 1 800 DA par mois, ou 79,99 $ / 19 900 DA par an',
             'Le paiement est traité via la passerelle sécurisée Chargily Pay (cartes CIB et EDAHABIA)',
             'Nous ne stockons pas vos données bancaires sur nos serveurs - le traitement est entièrement géré par Chargily',
-            'La vérification du paiement se fait côté serveur (Server-side) pour protéger votre compte',
+            'La vérification du paiement et l\'activation de l\'abonnement sont effectuées exclusivement côté serveur à l\'aide d\'un compte de service Firebase, afin de protéger votre compte',
             'Vous pouvez annuler votre abonnement à tout moment, il reste actif jusqu\'à la fin de la période payée',
             'Nous conservons uniquement: le type d\'abonnement et la date d\'expiration dans votre compte'
           ]
@@ -133,11 +151,11 @@ export function PrivacyPolicyPage({ language, onNavigateBack }: PrivacyPolicyPag
           icon: 'data',
           title: 'Données Personnelles',
           content: [
-            'Nous conservons uniquement: nom, email et photo Google',
-            'Vos données sont protégées par les règles de sécurité Firebase',
-            'Nous utilisons le cryptage SSL/TLS pour toutes les communications',
+            'Nous conservons uniquement: nom, email, photo Google et statut d\'abonnement',
+            'Vos données sont protégées par les règles de sécurité Firebase et chiffrées en SSL/TLS pour toutes les communications',
             'Nous ne stockons pas d\'informations bancaires sensibles comme les numéros de carte ou mots de passe',
-            'Toutes les requêtes API passent par un serveur intermédiaire sécurisé (Cloudflare Worker)'
+            'Toutes les requêtes API (cartes, IA, paiement) passent par un serveur intermédiaire sécurisé (Cloudflare Worker)',
+            'Les clés des services externes (Google Maps, OpenRouter, Chargily, Firebase Admin) sont uniquement stockées côté serveur et ne sont jamais exposées à votre appareil'
           ]
         },
         {
@@ -164,7 +182,7 @@ export function PrivacyPolicyPage({ language, onNavigateBack }: PrivacyPolicyPag
     en: {
       title: 'Privacy Policy',
       subtitle: 'Rihlaty Application',
-      lastUpdated: 'Last updated: March 2026',
+      lastUpdated: 'Last updated: April 2026 · Version 2.1.0',
       back: 'Back',
       intro: 'At Rihlaty, we respect your privacy and are committed to protecting your personal data. This policy explains how we collect, use, and protect your information.',
       sections: [
@@ -181,26 +199,35 @@ export function PrivacyPolicyPage({ language, onNavigateBack }: PrivacyPolicyPag
         },
         {
           icon: 'ai',
-          title: 'AI Assistant',
+          title: 'AI Assistant (Kimi K2.5)',
           content: [
-            'Your conversations with the AI assistant are saved in your account',
-            'When you delete a conversation, it is hidden from your interface and an archived copy may be retained for a limited period for technical and security purposes, then permanently deleted',
-            'We use AI assistant conversations only to provide the service and improve response quality',
-            'We may analyze data in an aggregated and anonymous manner to improve performance',
-            'We do not use your conversations to train custom AI models without your explicit consent',
-            'We use OpenRouter for response processing',
-            'Free users: 10 messages/day, Pro subscribers: unlimited messages',
-            'We do not sell your data or conversations to third parties'
+            'We use Moonshot AI\'s models — Kimi K2.5 (for everyone) and Kimi K2.5 Thinking (for Pro subscribers) — through the OpenRouter broker',
+            'When you send a message, your request, your approximate location, and a short list of nearby places are forwarded to OpenRouter and then to Moonshot AI solely to generate the reply — they are not retained by those parties for training',
+            'When you enable "Web search", a query is sent to an external search engine (Exa via OpenRouter) to fetch up-to-date sources whose links are shown with the reply',
+            'Your conversations with the assistant are saved in your account on Firestore and remain private to you',
+            'When you delete a conversation it is hidden from your view immediately and permanently deleted after a short archival window',
+            'We do not use your conversations to train custom AI models and we do not sell your data or conversations to third parties'
+          ]
+        },
+        {
+          icon: 'tokens',
+          title: 'Monthly Token Quotas',
+          content: [
+            'Free plan: 60K input + 40K output tokens per month for Kimi K2.5 (roughly 80 messages)',
+            'Pro plan: 800K + 700K tokens per month for Kimi K2.5, plus 150K + 150K tokens for Kimi K2.5 Thinking',
+            'These numbers are stored only as monthly aggregates in a protected Firestore document — they do not contain the text of your conversations',
+            'Counters reset automatically on the first day of every calendar month (UTC)',
+            'Writing to the token counter is restricted to our secure server (Cloudflare Worker) so clients cannot tamper with it'
           ]
         },
         {
           icon: 'payment',
           title: 'Payment & Subscriptions',
           content: [
-            'We offer a free plan and a paid Pro plan (monthly or yearly)',
+            'We offer a free plan and a paid Pro plan: $6.99 / 1,800 DZD per month, or $79.99 / 19,900 DZD per year',
             'Payments are processed via the secure Chargily Pay gateway (supports CIB and EDAHABIA cards)',
             'We do not store your bank card details on our servers - processing is handled entirely by Chargily',
-            'Payment verification is done server-side to protect your account',
+            'Payment verification and subscription activation are performed exclusively server-side using a Firebase service account to protect your account',
             'You can cancel your subscription at any time, it remains active until the end of the paid period',
             'We only store: subscription type and expiry date in your account'
           ]
@@ -209,11 +236,11 @@ export function PrivacyPolicyPage({ language, onNavigateBack }: PrivacyPolicyPag
           icon: 'data',
           title: 'Personal Data',
           content: [
-            'We only store: full name, email, and Google photo',
-            'Your data is protected by Firebase security rules',
-            'We use SSL/TLS encryption for all communications',
+            'We only store: full name, email, Google photo, and subscription status',
+            'Your data is protected by Firebase security rules and encrypted via SSL/TLS for all communications',
             'We do not store sensitive banking information like card numbers or passwords',
-            'All API requests pass through a secure intermediary server (Cloudflare Worker)'
+            'All API requests (maps, AI, payments) pass through a secure intermediary server (Cloudflare Worker)',
+            'Third-party service keys (Google Maps, OpenRouter, Chargily, Firebase Admin) are kept server-side only and never reach your device'
           ]
         },
         {
@@ -247,6 +274,8 @@ export function PrivacyPolicyPage({ language, onNavigateBack }: PrivacyPolicyPag
         return <MapPin className="w-5 h-5 text-white" />;
       case 'ai':
         return <Bot className="w-5 h-5 text-white" />;
+      case 'tokens':
+        return <BarChart3 className="w-5 h-5 text-white" />;
       case 'payment':
         return <CreditCard className="w-5 h-5 text-white" />;
       case 'data':
@@ -266,6 +295,8 @@ export function PrivacyPolicyPage({ language, onNavigateBack }: PrivacyPolicyPag
         return 'from-blue-500 to-cyan-500';
       case 'ai':
         return 'from-purple-500 to-pink-500';
+      case 'tokens':
+        return 'from-teal-500 to-cyan-500';
       case 'payment':
         return 'from-amber-500 to-orange-500';
       case 'data':

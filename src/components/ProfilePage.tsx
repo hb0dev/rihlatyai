@@ -63,7 +63,8 @@ export function ProfilePage({ language, onLogout, onLanguageChange }: ProfilePag
 • اكتشاف الشواطئ والمواقع الطبيعية الخلابة
 • استكشاف المعالم التاريخية والثقافية
 • البحث عن الفنادق والمطاعم القريبة
-• مساعد ذكي يعمل بالذكاء الاصطناعي
+• مساعد ذكي Kimi K2.5 مع وضع التفكير العميق للمشتركين في Pro
+• البحث في الويب مباشرة داخل المحادثة
 • ملاحة مباشرة لأي وجهة
 • صور وتقييمات وتفاصيل الأماكن (أرقام هاتف، حالة مفتوح/مغلق)
 
@@ -76,7 +77,7 @@ contact@rihlaty.ai
 🌐 الموقع:
 www.rihlaty.ai
 
-الإصدار 2.0.0`,
+الإصدار 2.1.0`,
       contactSupport: 'تواصل مع الدعم',
       deleteAccount: 'حذف الحساب',
       deleteTitle: 'حذف الحساب',
@@ -92,16 +93,22 @@ www.rihlaty.ai
 - لا نشارك موقعك مع أي طرف ثالث
 - يمكنك إيقاف الوصول للموقع في أي وقت
 
-🤖 المساعد الذكي (AI):
-- محادثاتك مع المساعد تُحفظ في حسابك
-- عند حذف محادثة، يتم إخفاؤها من واجهتك وقد تبقى نسخة مؤرشفة لفترة محدودة لأغراض تقنية وأمنية، ثم يتم حذفها نهائياً
-- لا نستخدم محادثاتك لتدريب نماذج ذكاء اصطناعي بدون موافقتك الصريحة
-- لا نبيع بياناتك لأطراف ثالثة
+🤖 المساعد الذكي (Kimi K2.5):
+- ردود المساعد تأتي من نماذج Moonshot AI (Kimi K2.5 و K2.5 Thinking) عبر وسيط OpenRouter
+- رسالتك + موقعك التقريبي + قائمة مختصرة بالأماكن القريبة تُرسَل لمعالجة الرد فقط، ولا تُخزَّن لدى هذه الأطراف للاستخدام التدريبي
+- عند تفعيل "البحث في الويب" يتم استعلام محرك بحث خارجي (Exa عبر OpenRouter) لإحضار مصادر محدّثة
+- محادثاتك تُحفظ في حسابك على Firestore، وتظل مرتبطة بحسابك وحده
+- عند حذف محادثة، تختفي من واجهتك وتُحذَف نهائياً بعد فترة مؤرشفة قصيرة
+- لا نستخدم محادثاتك لتدريب نماذج ذكاء اصطناعي، ولا نبيع بياناتك لأطراف ثالثة
+
+📊 استخدام التوكنز:
+- لإدارة حصص الخطة (Free/Pro) نسجّل عدد التوكنز الشهرية لكل مستخدم في وثيقة محميّة على Firestore
+- هذه الأرقام مجمّعة شهرياً ولا تحتوي على نص محادثاتك
 
 🔐 البيانات الشخصية:
-- نحفظ فقط: اسمك، بريدك الإلكتروني، وصورتك من Google
-- بياناتك محمية بقواعد أمان Firebase
-- يمكنك حذف حسابك في أي وقت`,
+- نحفظ فقط: اسمك، بريدك الإلكتروني، صورتك من Google، وحالة اشتراكك
+- بياناتك محمية بقواعد أمان Firebase، والاشتراك يُكتَب عبر خادم آمن فقط
+- يمكنك حذف حسابك في أي وقت من صفحة حسابي`,
       notifications: 'الإشعارات',
       notificationsTitle: 'إعدادات الإشعارات',
       weatherNotifications: 'إشعارات الطقس',
@@ -141,7 +148,8 @@ Rihlaty est une application touristique intelligente conçue pour vous aider à 
 • Découvrir des plages et sites naturels magnifiques
 • Explorer les monuments historiques et culturels
 • Trouver des hôtels et restaurants à proximité
-• Assistant IA intelligent
+• Assistant IA Kimi K2.5 avec mode « Thinking » exclusif aux abonnés Pro
+• Recherche web intégrée directement dans la discussion
 • Navigation directe vers toute destination
 • Photos, notes et détails des lieux (téléphone, statut ouvert/fermé)
 
@@ -154,7 +162,7 @@ contact@rihlaty.ai
 🌐 Site web:
 www.rihlaty.ai
 
-Version 2.0.0`,
+Version 2.1.0`,
       contactSupport: 'Contacter le support',
       deleteAccount: 'Supprimer le compte',
       deleteTitle: 'Supprimer le compte',
@@ -170,16 +178,22 @@ Version 2.0.0`,
 - Nous ne partageons pas votre position avec des tiers
 - Vous pouvez désactiver l'accès à la localisation à tout moment
 
-🤖 Assistant IA:
-- Vos conversations sont sauvegardées dans votre compte
-- Lorsque vous supprimez une conversation, elle disparaît de votre interface puis supprimée définitivement
-- Nous n'utilisons pas vos conversations pour entraîner des modèles d'IA sans votre consentement
-- Nous ne vendons pas vos données à des tiers
+🤖 Assistant IA (Kimi K2.5):
+- Les réponses proviennent des modèles Moonshot AI (Kimi K2.5 et K2.5 Thinking) via l'intermédiaire OpenRouter
+- Votre message, votre position approximative et une courte liste de lieux proches sont transmis uniquement pour générer la réponse, sans stockage à des fins d'entraînement
+- Lorsque la « recherche web » est activée, une requête est envoyée à un moteur externe (Exa via OpenRouter) pour récupérer des sources à jour
+- Vos conversations sont sauvegardées dans votre compte sur Firestore et restent privées
+- Lorsque vous supprimez une conversation, elle disparaît immédiatement puis est définitivement supprimée après une courte période d'archivage
+- Nous n'utilisons pas vos conversations pour entraîner des modèles d'IA et nous ne vendons pas vos données
+
+📊 Usage des tokens:
+- Pour gérer les quotas Free/Pro, nous enregistrons le nombre mensuel de tokens utilisés dans un document sécurisé sur Firestore
+- Ces chiffres sont agrégés mensuellement et ne contiennent pas le texte de vos conversations
 
 🔐 Données personnelles:
-- Nous conservons uniquement: nom, email et photo Google
-- Vos données sont protégées par les règles de sécurité Firebase
-- Vous pouvez supprimer votre compte à tout moment`,
+- Nous conservons uniquement: nom, email, photo Google et statut d'abonnement
+- Vos données sont protégées par les règles de sécurité Firebase, et l'abonnement est écrit exclusivement côté serveur
+- Vous pouvez supprimer votre compte à tout moment depuis la page Profil`,
       notifications: 'Notifications',
       notificationsTitle: 'Paramètres de notifications',
       weatherNotifications: 'Alertes météo',
@@ -219,7 +233,8 @@ Rihlaty is an intelligent tourism app designed to help you discover the most bea
 • Discover stunning beaches and natural sites
 • Explore historical and cultural landmarks
 • Find nearby hotels and restaurants
-• AI-powered smart assistant
+• Kimi K2.5 AI assistant with Pro-exclusive Thinking mode
+• Built-in web search directly inside the chat
 • Direct navigation to any destination
 • Place photos, ratings, and details (phone, open/closed status)
 
@@ -232,7 +247,7 @@ contact@rihlaty.ai
 🌐 Website:
 www.rihlaty.ai
 
-Version 2.0.0`,
+Version 2.1.0`,
       contactSupport: 'Contact Support',
       deleteAccount: 'Delete Account',
       deleteTitle: 'Delete Account',
@@ -248,16 +263,22 @@ Version 2.0.0`,
 - We do not share your location with third parties
 - You can disable location access at any time
 
-🤖 AI Assistant:
-- Your conversations are saved in your account
-- When you delete a conversation, it is hidden then permanently deleted
-- We do not use your conversations to train AI models without your consent
-- We do not sell your data to third parties
+🤖 AI Assistant (Kimi K2.5):
+- Replies come from Moonshot AI models (Kimi K2.5 and K2.5 Thinking) through the OpenRouter broker
+- Your message, your approximate location, and a short list of nearby places are sent solely to generate the reply — they are not stored for training
+- When you enable "Web search", a query is sent to an external search engine (Exa via OpenRouter) to fetch up-to-date sources
+- Your conversations are saved in your account on Firestore and remain private to you
+- When you delete a conversation it disappears from your view and is permanently deleted after a short archival window
+- We do not use your conversations to train AI models and we do not sell your data to third parties
+
+📊 Token usage:
+- To enforce Free/Pro quotas we store your monthly token counts in a protected Firestore document
+- These are aggregate numbers only and do not contain the text of your conversations
 
 🔐 Personal Data:
-- We only store: name, email, and Google photo
-- Your data is protected by Firebase security rules
-- You can delete your account at any time`,
+- We only store: name, email, Google photo, and subscription status
+- Your data is protected by Firebase security rules; subscriptions are written server-side only
+- You can delete your account at any time from the Profile page`,
       notifications: 'Notifications',
       notificationsTitle: 'Notification Settings',
       weatherNotifications: 'Weather Alerts',
