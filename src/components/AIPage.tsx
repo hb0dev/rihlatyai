@@ -1,6 +1,6 @@
 import { useState, useRef, useEffect } from 'react';
 import { motion, AnimatePresence } from 'motion/react';
-import { Send, Bot, User, ArrowRight, Loader2, Sparkles, Menu, X, MessageSquare, Plus, Trash2, Star, MapPin, Phone, Lock, Globe, Brain, ChevronDown, ChevronUp, ExternalLink, Check } from 'lucide-react';
+import { Send, Bot, User, ArrowRight, Loader2, Sparkles, Menu, X, MessageSquare, Plus, Trash2, Star, MapPin, Phone, Lock, Globe, Brain, ChevronDown, ChevronUp, ExternalLink } from 'lucide-react';
 import aiLogo from '../logo/ailogo.png';
 import { useLocation } from '../context/LocationContext';
 import { useAuth } from '../context/AuthContext';
@@ -21,62 +21,114 @@ function ThinkingDots() {
   );
 }
 
-function UsageBar({
-  label,
-  inputUsed,
-  inputLimit,
-  outputUsed,
-  outputLimit,
+function TokenChip({
+  model,
+  usage,
+  limits,
+  isPro,
   inputLabel,
   outputLabel,
 }: {
-  label: string;
-  inputUsed: number;
-  inputLimit: number;
-  outputUsed: number;
-  outputLimit: number;
+  model: AIModel;
+  usage: { kimiInput: number; kimiOutput: number; thinkingInput: number; thinkingOutput: number };
+  limits: { kimiInput: number; kimiOutput: number; thinkingInput: number; thinkingOutput: number };
+  isPro: boolean;
   inputLabel: string;
   outputLabel: string;
 }) {
+  const [open, setOpen] = useState(false);
+
+  const bucket = model === 'kimi-thinking' ? 'thinking' : 'kimi';
+  const usedInput = bucket === 'thinking' ? usage.thinkingInput : usage.kimiInput;
+  const limitInput = bucket === 'thinking' ? limits.thinkingInput : limits.kimiInput;
+  const usedOutput = bucket === 'thinking' ? usage.thinkingOutput : usage.kimiOutput;
+  const limitOutput = bucket === 'thinking' ? limits.thinkingOutput : limits.kimiOutput;
+
+  // Show remaining tokens (more intuitive than "used / limit").
+  const remainingInput = Math.max(0, limitInput - usedInput);
+  const remainingOutput = Math.max(0, limitOutput - usedOutput);
+  const smaller = Math.min(remainingInput, remainingOutput);
+
   const fmt = (n: number) => {
-    if (n >= 1000) return `${(n / 1000).toFixed(n >= 10000 ? 0 : 1)}K`;
+    if (n >= 1_000_000) return `${(n / 1_000_000).toFixed(1)}M`;
+    if (n >= 1000) return `${(n / 1000).toFixed(n >= 10_000 ? 0 : 1)}K`;
     return n.toString();
   };
-  const pct = (used: number, limit: number) => {
-    if (!limit) return 0;
-    return Math.min(100, Math.round((used / limit) * 100));
-  };
-  const inputPct = pct(inputUsed, inputLimit);
-  const outputPct = pct(outputUsed, outputLimit);
-  const barColor = (p: number) =>
-    p >= 90 ? 'bg-red-500' : p >= 70 ? 'bg-amber-500' : 'bg-teal-500';
+
+  // Warning color when running low (<= 10% of the smaller dimension's limit)
+  const smallerLimit = Math.min(limitInput, limitOutput);
+  const lowThreshold = Math.max(1, Math.round(smallerLimit * 0.1));
+  const isLow = smaller <= lowThreshold;
 
   return (
-    <div>
-      <p className="text-[13px] font-semibold text-gray-700 dark:text-gray-200 mb-2">{label}</p>
-      <div className="space-y-2">
-        <div>
-          <div className="flex items-center justify-between mb-1">
-            <span className="text-[11px] text-gray-500 dark:text-gray-400">{inputLabel}</span>
-            <span className="text-[11px] font-medium text-gray-600 dark:text-gray-300 tabular-nums">
-              {fmt(inputUsed)} / {fmt(inputLimit)}
-            </span>
-          </div>
-          <div className="h-1.5 bg-slate-100 dark:bg-dark-card-high rounded-full overflow-hidden">
-            <div className={`h-full rounded-full ${barColor(inputPct)} transition-all`} style={{ width: `${inputPct}%` }} />
-          </div>
-        </div>
-        <div>
-          <div className="flex items-center justify-between mb-1">
-            <span className="text-[11px] text-gray-500 dark:text-gray-400">{outputLabel}</span>
-            <span className="text-[11px] font-medium text-gray-600 dark:text-gray-300 tabular-nums">
-              {fmt(outputUsed)} / {fmt(outputLimit)}
-            </span>
-          </div>
-          <div className="h-1.5 bg-slate-100 dark:bg-dark-card-high rounded-full overflow-hidden">
-            <div className={`h-full rounded-full ${barColor(outputPct)} transition-all`} style={{ width: `${outputPct}%` }} />
-          </div>
-        </div>
+    <div className="relative">
+      <motion.button
+        whileTap={{ scale: 0.95 }}
+        onClick={() => setOpen(v => !v)}
+        className={`px-2.5 py-1.5 rounded-xl flex items-center gap-1.5 transition-colors ${
+          isLow
+            ? 'bg-red-500/30 border border-red-300/40 text-red-100'
+            : 'bg-white/15 text-white/90 hover:bg-white/25'
+        }`}
+      >
+        <MessageSquare className="w-3.5 h-3.5" strokeWidth={2} />
+        <span className="text-[11px] font-bold tabular-nums" dir="ltr">{fmt(smaller)}</span>
+      </motion.button>
+
+      <AnimatePresence>
+        {open && (
+          <>
+            <div
+              onClick={() => setOpen(false)}
+              className="fixed inset-0 z-30"
+            />
+            <motion.div
+              initial={{ opacity: 0, y: -4, scale: 0.95 }}
+              animate={{ opacity: 1, y: 0, scale: 1 }}
+              exit={{ opacity: 0, y: -4, scale: 0.95 }}
+              transition={{ duration: 0.15 }}
+              className="absolute top-full right-0 mt-2 w-64 bg-white dark:bg-dark-card rounded-2xl shadow-elevation-3 border border-gray-100 dark:border-gray-700/50 p-3 z-40"
+            >
+              <div className="space-y-3">
+                <div>
+                  <p className="text-[10px] font-bold uppercase tracking-wider text-gray-400 dark:text-gray-500 mb-1">Kimi K2.5</p>
+                  <TokenRow label={inputLabel} used={usage.kimiInput} limit={limits.kimiInput} />
+                  <TokenRow label={outputLabel} used={usage.kimiOutput} limit={limits.kimiOutput} />
+                </div>
+                {isPro && (
+                  <div>
+                    <p className="text-[10px] font-bold uppercase tracking-wider text-gray-400 dark:text-gray-500 mb-1">K2.5 Thinking</p>
+                    <TokenRow label={inputLabel} used={usage.thinkingInput} limit={limits.thinkingInput} />
+                    <TokenRow label={outputLabel} used={usage.thinkingOutput} limit={limits.thinkingOutput} />
+                  </div>
+                )}
+              </div>
+            </motion.div>
+          </>
+        )}
+      </AnimatePresence>
+    </div>
+  );
+}
+
+function TokenRow({ label, used, limit }: { label: string; used: number; limit: number }) {
+  const fmt = (n: number) => {
+    if (n >= 1_000_000) return `${(n / 1_000_000).toFixed(1)}M`;
+    if (n >= 1000) return `${(n / 1000).toFixed(n >= 10_000 ? 0 : 1)}K`;
+    return n.toString();
+  };
+  const pct = limit > 0 ? Math.min(100, Math.round((used / limit) * 100)) : 0;
+  const barColor = pct >= 90 ? 'bg-red-500' : pct >= 70 ? 'bg-amber-500' : 'bg-teal-500';
+  return (
+    <div className="mb-1.5 last:mb-0">
+      <div className="flex items-center justify-between mb-1">
+        <span className="text-[11px] text-gray-500 dark:text-gray-400">{label}</span>
+        <span className="text-[11px] font-medium text-gray-700 dark:text-gray-200 tabular-nums" dir="ltr">
+          {fmt(used)} / {fmt(limit)}
+        </span>
+      </div>
+      <div className="h-1 bg-slate-100 dark:bg-dark-card-high rounded-full overflow-hidden">
+        <div className={`h-full rounded-full ${barColor}`} style={{ width: `${pct}%` }} />
       </div>
     </div>
   );
@@ -319,7 +371,6 @@ export function AIPage({ language, onNavigateBack }: AIPageProps) {
   const [requestingLocation, setRequestingLocation] = useState(false);
   const [selectedModel, setSelectedModel] = useState<AIModel>('kimi');
   const [useWebSearch, setUseWebSearch] = useState(false);
-  const [showModelPicker, setShowModelPicker] = useState(false);
   const [sidebarOpen, setSidebarOpen] = useState(false);
   const [savedConversations, setSavedConversations] = useState<SavedConversation[]>([]);
   const [currentConversationId, setCurrentConversationId] = useState<string | null>(null);
@@ -363,8 +414,31 @@ export function AIPage({ language, onNavigateBack }: AIPageProps) {
   const saveConversation = async (conversation: SavedConversation) => {
     if (!user) return;
     try {
+      const sanitizedMessages = conversation.messages.map((m) => {
+        const out: Record<string, unknown> = {
+          id: m.id,
+          type: m.type,
+          text: m.text,
+          timestamp: m.timestamp instanceof Date ? m.timestamp.toISOString() : m.timestamp,
+        };
+        if (m.model !== undefined) out.model = m.model;
+        if (m.reasoning !== undefined) out.reasoning = m.reasoning;
+        if (m.citations !== undefined && m.citations.length > 0) out.citations = m.citations;
+        if (m.usedWebSearch !== undefined) out.usedWebSearch = m.usedWebSearch;
+        return out;
+      });
+
+      const payload = {
+        id: conversation.id,
+        title: conversation.title,
+        messages: sanitizedMessages,
+        history: conversation.history,
+        createdAt: conversation.createdAt,
+        updatedAt: conversation.updatedAt,
+      };
+
       const convRef = doc(db, 'users', user.uid, 'conversations', conversation.id);
-      await setDoc(convRef, conversation);
+      await setDoc(convRef, payload);
     } catch (error) {
       console.error('Error saving conversation:', error);
     }
@@ -840,23 +914,33 @@ export function AIPage({ language, onNavigateBack }: AIPageProps) {
           </motion.button>
         </div>
         <div className="flex items-center justify-between">
-          <div className="flex items-center gap-3">
-            <div className="w-12 h-12 bg-white/15 backdrop-blur-sm rounded-2xl flex items-center justify-center p-2">
-              <img 
-                src={aiLogo} 
-                alt="AI Logo" 
+          <div className="flex items-center gap-3 min-w-0">
+            <div className="w-12 h-12 bg-white/15 backdrop-blur-sm rounded-2xl flex items-center justify-center p-2 flex-shrink-0">
+              <img
+                src={aiLogo}
+                alt="AI Logo"
                 className="w-full h-full object-contain"
               />
             </div>
-              <div>
-              <h1 className="text-white text-xl font-bold tracking-tight">{t.title}</h1>
+            <div className="min-w-0">
               <div className="flex items-center gap-2">
-                <p className="text-white/65 text-sm">{t.subtitle}</p>
+                <h1 className="text-white text-xl font-bold tracking-tight">{t.title}</h1>
                 {isPro && <span className="bg-teal-300/20 text-teal-200 text-[10px] font-bold px-1.5 py-0.5 rounded-md">PRO</span>}
               </div>
+              <p className="text-white/65 text-sm truncate">{t.subtitle}</p>
             </div>
           </div>
-          <div className="flex items-center gap-2">
+
+          {/* Token usage chip + new chat */}
+          <div className="flex items-center gap-2 flex-shrink-0">
+            <TokenChip
+              model={selectedModel}
+              usage={usage}
+              limits={limits}
+              isPro={isPro}
+              inputLabel={t.inputTokens}
+              outputLabel={t.outputTokens}
+            />
             {messages.length > 0 && (
               <motion.button
                 whileTap={{ scale: 0.95 }}
@@ -869,146 +953,59 @@ export function AIPage({ language, onNavigateBack }: AIPageProps) {
           </div>
         </div>
 
-        {/* Model selector + Web search toggle */}
-        <div className="flex items-center gap-2 mt-4">
-          <motion.button
-            whileTap={{ scale: 0.97 }}
-            onClick={() => setShowModelPicker(true)}
-            className="flex items-center gap-2 bg-white/15 hover:bg-white/25 transition-colors px-3 py-2 rounded-xl flex-1 min-w-0"
-          >
-            {selectedModel === 'kimi-thinking' ? (
-              <Brain className="w-4 h-4 text-white flex-shrink-0" strokeWidth={2} />
-            ) : (
-              <Sparkles className="w-4 h-4 text-white flex-shrink-0" strokeWidth={2} />
-            )}
-            <span className="text-white text-sm font-semibold truncate">
-              {selectedModel === 'kimi-thinking' ? t.modelKimiThinking : t.modelKimi}
-            </span>
-            <ChevronDown className="w-4 h-4 text-white/70 flex-shrink-0 ms-auto" />
-          </motion.button>
+        {/* Model segmented control + Web search toggle */}
+        <div className="mt-4 flex items-center gap-2">
+          <div className="flex-1 bg-white/10 backdrop-blur-sm rounded-xl p-1 flex items-center gap-1">
+            {[
+              { id: 'kimi' as AIModel, label: t.modelKimi, icon: Sparkles, locked: false },
+              { id: 'kimi-thinking' as AIModel, label: t.modelKimiThinking, icon: Brain, locked: !isPro },
+            ].map((m) => {
+              const Icon = m.icon;
+              const active = selectedModel === m.id;
+              return (
+                <motion.button
+                  key={m.id}
+                  whileTap={{ scale: 0.97 }}
+                  onClick={() => {
+                    if (m.locked) {
+                      setShowUpgradeModal(true);
+                      return;
+                    }
+                    setSelectedModel(m.id);
+                  }}
+                  className={`flex-1 flex items-center justify-center gap-1.5 px-2 py-2 rounded-lg transition-colors ${
+                    active
+                      ? 'bg-white text-teal-600 shadow-elevation-1'
+                      : 'text-white/80 hover:bg-white/10'
+                  }`}
+                >
+                  {m.locked ? (
+                    <Lock className="w-3.5 h-3.5 flex-shrink-0" strokeWidth={2.5} />
+                  ) : (
+                    <Icon className="w-3.5 h-3.5 flex-shrink-0" strokeWidth={2.5} />
+                  )}
+                  <span className="text-[12px] font-bold truncate">
+                    {m.id === 'kimi' ? 'K2.5' : 'Thinking'}
+                  </span>
+                </motion.button>
+              );
+            })}
+          </div>
 
           <motion.button
             whileTap={{ scale: 0.95 }}
             onClick={() => setUseWebSearch(v => !v)}
             title={useWebSearch ? t.webSearchOn : t.webSearch}
-            className={`px-3 py-2 rounded-xl flex items-center gap-1.5 transition-colors ${
+            className={`px-3 py-2 rounded-xl flex items-center gap-1.5 transition-colors flex-shrink-0 ${
               useWebSearch
                 ? 'bg-white text-teal-600 shadow-elevation-1'
-                : 'bg-white/15 text-white hover:bg-white/25'
+                : 'bg-white/10 text-white hover:bg-white/20'
             }`}
           >
-            <Globe className="w-4 h-4" strokeWidth={2} />
-            <span className="text-xs font-bold">{t.webSearch}</span>
+            <Globe className="w-4 h-4" strokeWidth={2.5} />
           </motion.button>
         </div>
       </div>
-
-      {/* Model picker bottom sheet */}
-      <AnimatePresence>
-        {showModelPicker && (
-          <>
-            <motion.div
-              initial={{ opacity: 0 }}
-              animate={{ opacity: 1 }}
-              exit={{ opacity: 0 }}
-              onClick={() => setShowModelPicker(false)}
-              className="fixed inset-0 bg-black/50 z-50"
-            />
-            <motion.div
-              initial={{ y: '100%' }}
-              animate={{ y: 0 }}
-              exit={{ y: '100%' }}
-              transition={{ type: 'spring', damping: 30, stiffness: 300 }}
-              className="fixed bottom-0 left-0 right-0 bg-white dark:bg-dark-card rounded-t-3xl shadow-elevation-3 z-50 pb-6 safe-area-bottom"
-            >
-              <div className="flex justify-center pt-3 pb-2">
-                <div className="w-10 h-1 bg-gray-200 dark:bg-gray-700 rounded-full" />
-              </div>
-              <div className="px-5 pb-2">
-                {[
-                  { id: 'kimi' as AIModel, name: t.modelKimi, desc: t.modelKimiDesc, icon: Sparkles, locked: false },
-                  { id: 'kimi-thinking' as AIModel, name: t.modelKimiThinking, desc: t.modelThinkingDesc, icon: Brain, locked: !isPro },
-                ].map((m) => {
-                  const Icon = m.icon;
-                  const isSelected = selectedModel === m.id;
-                  return (
-                    <motion.button
-                      key={m.id}
-                      whileTap={{ scale: 0.98 }}
-                      onClick={() => {
-                        if (m.locked) {
-                          setShowModelPicker(false);
-                          setShowUpgradeModal(true);
-                          return;
-                        }
-                        setSelectedModel(m.id);
-                        setShowModelPicker(false);
-                      }}
-                      className={`w-full text-start flex items-center gap-3 p-4 rounded-2xl mb-2 transition-colors ${
-                        isSelected
-                          ? 'bg-teal-50 dark:bg-teal-900/30 border-2 border-teal-400 dark:border-teal-600'
-                          : 'bg-slate-50 dark:bg-dark-card-high border-2 border-transparent'
-                      }`}
-                    >
-                      <div className={`w-11 h-11 rounded-xl flex items-center justify-center flex-shrink-0 ${
-                        isSelected
-                          ? 'bg-teal-500 text-white'
-                          : 'bg-white dark:bg-dark-card text-teal-600 dark:text-teal-400'
-                      }`}>
-                        <Icon className="w-5 h-5" strokeWidth={2} />
-                      </div>
-                      <div className="flex-1 min-w-0">
-                        <div className="flex items-center gap-2">
-                          <p className="font-bold text-gray-800 dark:text-gray-100 text-sm">{m.name}</p>
-                          {m.locked && (
-                            <span className="bg-amber-100 dark:bg-amber-900/40 text-amber-700 dark:text-amber-300 text-[10px] font-bold px-1.5 py-0.5 rounded-md flex items-center gap-1">
-                              <Lock className="w-2.5 h-2.5" />
-                              {t.proOnly}
-                            </span>
-                          )}
-                        </div>
-                        <p className="text-xs text-gray-500 dark:text-gray-400 mt-0.5">{m.desc}</p>
-                      </div>
-                      {isSelected && (
-                        <Check className="w-5 h-5 text-teal-600 dark:text-teal-400 flex-shrink-0" strokeWidth={2.5} />
-                      )}
-                    </motion.button>
-                  );
-                })}
-
-                {/* Monthly usage summary */}
-                <div className="mt-4 pt-4 border-t border-gray-100 dark:border-gray-700/50">
-                  <p className="text-[11px] font-bold uppercase tracking-wider text-gray-400 dark:text-gray-500 mb-3">
-                    {t.usageTitle}
-                  </p>
-                  <UsageBar
-                    label={t.kimiTokens}
-                    inputUsed={usage.kimiInput}
-                    inputLimit={limits.kimiInput}
-                    outputUsed={usage.kimiOutput}
-                    outputLimit={limits.kimiOutput}
-                    inputLabel={t.inputTokens}
-                    outputLabel={t.outputTokens}
-                  />
-                  {isPro && (
-                    <div className="mt-3">
-                      <UsageBar
-                        label={t.thinkingTokens}
-                        inputUsed={usage.thinkingInput}
-                        inputLimit={limits.thinkingInput}
-                        outputUsed={usage.thinkingOutput}
-                        outputLimit={limits.thinkingOutput}
-                        inputLabel={t.inputTokens}
-                        outputLabel={t.outputTokens}
-                      />
-                    </div>
-                  )}
-                </div>
-              </div>
-            </motion.div>
-          </>
-        )}
-      </AnimatePresence>
 
       {/* Chat Container */}
       <div 
