@@ -162,6 +162,8 @@ interface SendMessageOptions {
   useWebSearch?: boolean;
 }
 
+const MODELS_WITH_VISIBLE_REASONING: AIModel[] = ['kimi-thinking'];
+
 export const sendMessageToAI = async (
   message: string,
   userContext: UserContext,
@@ -270,19 +272,17 @@ export const sendMessageToAI = async (
     const choice = data.choices[0];
     const msg = choice?.message || {};
     const aiText: string = msg.content || '';
-
-    // Extract reasoning (Kimi K2 Thinking returns it alongside content).
-    // OpenRouter exposes it under `reasoning` (string) and/or
-    // `reasoning_details` (array of structured parts).
     let reasoning: string | undefined;
-    if (typeof msg.reasoning === 'string' && msg.reasoning.trim()) {
-      reasoning = msg.reasoning;
-    } else if (Array.isArray(msg.reasoning_details)) {
-      const joined = msg.reasoning_details
-        .map((p: any) => (typeof p?.text === 'string' ? p.text : ''))
-        .filter(Boolean)
-        .join('\n');
-      if (joined.trim()) reasoning = joined;
+    if (MODELS_WITH_VISIBLE_REASONING.includes(options.model)) {
+      if (typeof msg.reasoning === 'string' && msg.reasoning.trim()) {
+        reasoning = msg.reasoning;
+      } else if (Array.isArray(msg.reasoning_details)) {
+        const joined = msg.reasoning_details
+          .map((p: any) => (typeof p?.text === 'string' ? p.text : ''))
+          .filter(Boolean)
+          .join('\n');
+        if (joined.trim()) reasoning = joined;
+      }
     }
 
     // Extract web-search citations (standardized url_citation annotations).
