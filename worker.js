@@ -17,13 +17,39 @@ const RATE_LIMITS = {
   '/create-checkout': 5,
   '/verify-payment': 10,
   '/ai': 20,
-  '/gemini': 20,
   '/places': 60,
   '/geocode': 30,
   '/autocomplete': 30,
   '/directions': 20,
   '/place-details': 40,
   '/place-photo': 80,
+};
+const AI_MODELS = {
+  kimi: {
+    slug: 'moonshotai/kimi-k2.5',
+    bucket: 'kimi',
+    supportsThinking: false,
+  },
+  'kimi-thinking': {
+    slug: 'moonshotai/kimi-k2-thinking',
+    bucket: 'thinking',
+    supportsThinking: true,
+    proOnly: true,
+  },
+};
+const QUOTAS = {
+  free: {
+    kimiInput: 60_000,
+    kimiOutput: 40_000,
+    thinkingInput: 0,
+    thinkingOutput: 0,
+  },
+  pro: {
+    kimiInput: 800_000,
+    kimiOutput: 700_000,
+    thinkingInput: 150_000,
+    thinkingOutput: 150_000,
+  },
 };
 function checkRateLimit(ip, path) {
   const key = `${ip}:${path}`;
@@ -143,7 +169,6 @@ export default {
     }
     const GOOGLE_KEY = env.GOOGLE_MAPS_API_KEY;
     const OPENROUTER_KEY = env.OPENROUTER_API_KEY;
-    const GEMINI_KEY = env.GEMINI_API_KEY;
     const CHARGILY_KEY = env.CHARGILY_SECRET_KEY;
     const CHARGILY_API = env.CHARGILY_API_URL || 'https://pay.chargily.com/test/api/v2';
     const FIREBASE_PROJECT_ID = env.FIREBASE_PROJECT_ID;
@@ -367,6 +392,76 @@ export default {
         if (!body.messages || !Array.isArray(body.messages)) {
           return jsonRes({ error: 'Invalid request body' }, corsHeaders, 400);
         }
+
+        const modelKey = body.model;
+        const modelCfg = AI_MODELS[modelKey];
+        if (!modelCfg) {
+          return jsonRes({ error: 'Unknown model' }, corsHeaders, 400);
+        }
+
+        const useWebSearch = body.useWebSearch === true;
+        let userState;
+        try {
+          userState = await readUserStateFromFirestore(env, authUser.uid);
+        } catch (stateErr) {
+          console.error('readUserStateFromFirestore failed, assuming free:', stateErr?.message || stateErr);
+          userState = {
+            plan: 'free',
+            usage: { month: currentMonthKey(), kimiInput: 0, kimiOutput: 0, thinkingInput: 0, thinkingOutput: 0 },
+          };
+        }
+
+        const plan = userState.plan;
+        const tierQuotas = QUOTAS[plan] || QUOTAS.free;
+
+        if (modelCfg.proOnly && plan !== 'pro') {
+          return jsonRes(
+            { error: 'pro_required', message: 'This model is available on Pro only.' },
+            corsHeaders,
+            403
+          );
+        }
+        const bucket = modelCfg.bucket;
+        const inputKey = bucket + 'Input';
+        const outputKey = bucket + 'Output';
+        const usedInput = userState.usage[inputKey] || 0;
+        const usedOutput = userState.usage[outputKey] || 0;
+        const maxInput = tierQuotas[inputKey] || 0;
+        const maxOutput = tierQuotas[outputKey] || 0;
+
+        if (usedInput >= maxInput || usedOutput >= maxOutput) {
+          return jsonRes(
+            {
+              error: 'quota_exceeded',
+              bucket,
+              plan,
+              usage: userState.usage,
+              limits: tierQuotas,
+            },
+            corsHeaders,
+            429
+          );
+        }
+        const orBody = {
+          model: modelCfg.slug,
+          messages: body.messages,
+          temperature: body.temperature ?? 0.7,
+          max_tokens: Math.min(body.max_tokens || 4096, 8192),
+        };
+
+        if (modelCfg.supportsThinking) {
+          orBody.reasoning = { effort: 'medium' };
+        }
+
+        if (useWebSearch) {
+          orBody.tools = [
+            {
+              type: 'openrouter:web_search',
+              parameters: { max_results: 3 },
+            },
+          ];
+        }
+
         const response = await fetch('https://openrouter.ai/api/v1/chat/completions', {
           method: 'POST',
           headers: {
@@ -375,50 +470,39 @@ export default {
             'X-Title': 'Rihlaty Tourism App',
             'Content-Type': 'application/json',
           },
-          body: JSON.stringify({
-            model: body.model || 'google/gemini-2.0-flash-001',
-            messages: body.messages,
-            temperature: body.temperature ?? 0.7,
-            max_tokens: Math.min(body.max_tokens || 4096, 8192),
-          }),
+          body: JSON.stringify(orBody),
         });
+
         const data = await response.json();
-        return jsonRes(data, corsHeaders);
-      } catch (e) {
-        return jsonRes({ error: 'AI request failed' }, corsHeaders, 500);
-      }
-    }
-    if (path === '/gemini' && request.method === 'POST') {
-      const authUser = await verifyFirebaseToken(
-        request.headers.get('Authorization'),
-        FIREBASE_PROJECT_ID
-      );
-      if (!authUser) {
-        return jsonRes({ error: 'Authentication required' }, corsHeaders, 401);
-      }
-      try {
-        const body = await request.json();
-        if (!body.contents || !Array.isArray(body.contents)) {
-          return jsonRes({ error: 'Invalid request body' }, corsHeaders, 400);
+
+        if (!response.ok) {
+          console.error('OpenRouter error:', response.status, JSON.stringify(data).slice(0, 500));
+          return jsonRes(
+            {
+              error: 'ai_upstream_error',
+              status: response.status,
+              message: data?.error?.message || data?.error || 'AI request failed',
+            },
+            corsHeaders,
+            response.status
+          );
         }
-        const response = await fetch(
-          `https://generativelanguage.googleapis.com/v1beta/models/gemini-3-flash-preview:generateContent?key=${GEMINI_KEY}`,
-          {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({
-              contents: body.contents,
-              generationConfig: {
-                temperature: body.generationConfig?.temperature ?? 0.7,
-                maxOutputTokens: Math.min(body.generationConfig?.maxOutputTokens || 8192, 16384),
-              },
-            }),
+        const usage = data.usage || {};
+        const promptTokens = Number(usage.prompt_tokens) || 0;
+        const completionTokens = Number(usage.completion_tokens) || 0;
+
+        if (promptTokens > 0 || completionTokens > 0) {
+          try {
+            await incrementMonthlyUsage(env, authUser.uid, bucket, promptTokens, completionTokens);
+          } catch (wErr) {
+            console.error('Usage write failed:', wErr?.message || wErr);
           }
-        );
-        const data = await response.json();
+        }
+
         return jsonRes(data, corsHeaders);
       } catch (e) {
-        return jsonRes({ error: 'Gemini request failed' }, corsHeaders, 500);
+        console.error('AI handler error:', e?.message || e);
+        return jsonRes({ error: 'AI request failed' }, corsHeaders, 500);
       }
     }
     if (path === '/create-checkout' && request.method === 'POST') {
@@ -430,8 +514,8 @@ export default {
         return jsonRes({ error: 'Authentication required' }, corsHeaders, 401);
       }
       const PLANS = {
-        monthly: { amount: 550, label: 'Rihlaty Pro - Monthly', days: 30 },
-        yearly: { amount: 5500, label: 'Rihlaty Pro - Yearly', days: 365 },
+        monthly: { amount: 1800, label: 'Rihlaty Pro - Monthly', days: 30 },
+        yearly: { amount: 19900, label: 'Rihlaty Pro - Yearly', days: 365 },
       };
       try {
         const { plan, successUrl, failureUrl } = await request.json();
@@ -713,9 +797,6 @@ async function getGoogleAccessToken(env) {
   };
   return tokenData.access_token;
 }
-
-// Minimal JSON -> Firestore REST document encoder (only covers the types
-// we actually use: string, number, map).
 function toFirestoreValue(v) {
   if (v === null || v === undefined) return { nullValue: null };
   if (typeof v === 'string') return { stringValue: v };
@@ -758,8 +839,6 @@ async function writeSubscriptionToFirestore(env, uid, subscription) {
     body: JSON.stringify(body),
   });
 
-  // If the user document doesn't exist yet, create it with just the
-  // subscription field (drop the currentDocument.exists guard).
   if (res.status === 404) {
     const createUrl =
       `https://firestore.googleapis.com/v1/projects/${encodeURIComponent(projectId)}` +
@@ -778,5 +857,128 @@ async function writeSubscriptionToFirestore(env, uid, subscription) {
   if (!res.ok) {
     const txt = await res.text();
     throw new Error(`Firestore write failed (${res.status}): ${txt.slice(0, 200)}`);
+  }
+}
+function currentMonthKey() {
+  const now = new Date();
+  const y = now.getUTCFullYear();
+  const m = String(now.getUTCMonth() + 1).padStart(2, '0');
+  return `${y}-${m}`;
+}
+function fromFirestoreValue(v) {
+  if (!v || typeof v !== 'object') return undefined;
+  if ('stringValue' in v) return v.stringValue;
+  if ('integerValue' in v) return Number(v.integerValue);
+  if ('doubleValue' in v) return Number(v.doubleValue);
+  if ('booleanValue' in v) return v.booleanValue;
+  if ('nullValue' in v) return null;
+  if ('mapValue' in v) {
+    const out = {};
+    const fields = v.mapValue?.fields || {};
+    for (const k of Object.keys(fields)) out[k] = fromFirestoreValue(fields[k]);
+    return out;
+  }
+  return undefined;
+}
+async function readUserStateFromFirestore(env, uid) {
+  const projectId = env.FIREBASE_PROJECT_ID;
+  if (!projectId) throw new Error('FIREBASE_PROJECT_ID missing');
+  const accessToken = await getGoogleAccessToken(env);
+
+  const month = currentMonthKey();
+  const userUrl =
+    `https://firestore.googleapis.com/v1/projects/${encodeURIComponent(projectId)}` +
+    `/databases/(default)/documents/users/${encodeURIComponent(uid)}`;
+  const usageUrl =
+    `https://firestore.googleapis.com/v1/projects/${encodeURIComponent(projectId)}` +
+    `/databases/(default)/documents/users/${encodeURIComponent(uid)}/usage/${encodeURIComponent(month)}`;
+
+  const [userRes, usageRes] = await Promise.all([
+    fetch(userUrl, { headers: { Authorization: `Bearer ${accessToken}` } }),
+    fetch(usageUrl, { headers: { Authorization: `Bearer ${accessToken}` } }),
+  ]);
+
+  let plan = 'free';
+  if (userRes.ok) {
+    const data = await userRes.json();
+    const sub = fromFirestoreValue(data.fields?.subscription);
+    if (sub && sub.plan === 'pro') {
+      const expiresAt = sub.expiresAt ? Date.parse(sub.expiresAt) : NaN;
+      if (!Number.isFinite(expiresAt) || expiresAt > Date.now()) {
+        plan = 'pro';
+      }
+    }
+  }
+  let usage = {
+    month,
+    kimiInput: 0,
+    kimiOutput: 0,
+    thinkingInput: 0,
+    thinkingOutput: 0,
+  };
+  if (usageRes.ok) {
+    const data = await usageRes.json();
+    const parsed = {};
+    for (const k of Object.keys(data.fields || {})) {
+      parsed[k] = fromFirestoreValue(data.fields[k]);
+    }
+    if (parsed.month === month) {
+      usage = {
+        month,
+        kimiInput: Number(parsed.kimiInput) || 0,
+        kimiOutput: Number(parsed.kimiOutput) || 0,
+        thinkingInput: Number(parsed.thinkingInput) || 0,
+        thinkingOutput: Number(parsed.thinkingOutput) || 0,
+      };
+    }
+  }
+  return { plan, usage };
+}
+async function incrementMonthlyUsage(env, uid, bucket, inputTokens, outputTokens) {
+  const projectId = env.FIREBASE_PROJECT_ID;
+  if (!projectId) throw new Error('FIREBASE_PROJECT_ID missing');
+  const accessToken = await getGoogleAccessToken(env);
+  const month = currentMonthKey();
+  const docPath =
+    `projects/${projectId}/databases/(default)/documents/users/${uid}/usage/${month}`;
+  const inputField = bucket + 'Input';
+  const outputField = bucket + 'Output';
+  const commitBody = {
+    writes: [
+      {
+        transform: {
+          document: docPath,
+          fieldTransforms: [
+            { fieldPath: inputField, increment: { integerValue: String(inputTokens) } },
+            { fieldPath: outputField, increment: { integerValue: String(outputTokens) } },
+          ],
+        },
+      },
+      {
+        update: {
+          name: docPath,
+          fields: { month: { stringValue: month } },
+        },
+        updateMask: { fieldPaths: ['month'] },
+      },
+    ],
+  };
+
+  const commitUrl =
+    `https://firestore.googleapis.com/v1/projects/${encodeURIComponent(projectId)}` +
+    `/databases/(default)/documents:commit`;
+
+  const res = await fetch(commitUrl, {
+    method: 'POST',
+    headers: {
+      Authorization: `Bearer ${accessToken}`,
+      'Content-Type': 'application/json',
+    },
+    body: JSON.stringify(commitBody),
+  });
+
+  if (!res.ok) {
+    const txt = await res.text();
+    throw new Error(`Usage commit failed (${res.status}): ${txt.slice(0, 200)}`);
   }
 }

@@ -36,7 +36,7 @@ export function PrivacyPolicyPage({ language, onNavigateBack }: PrivacyPolicyPag
             'نستخدم محادثات المساعد الذكي فقط لتقديم الخدمة وتحسين جودة الردود',
             'قد نحلل البيانات بشكل مجمّع ومجهول الهوية لأغراض تحسين الأداء والخدمة',
             'لا نستخدم محادثاتك لتدريب نماذج ذكاء اصطناعي مخصصة بدون موافقتك الصريحة',
-            'نستخدم خدمات OpenRouter و Google Gemini لمعالجة الردود',
+            'نستخدم خدمة OpenRouter لمعالجة الردود',
             'المستخدمون المجانيون: 10 رسائل يومياً، مشتركو Pro: رسائل غير محدودة',
             'لا نبيع بياناتك أو محادثاتك لأطراف ثالثة'
           ]
@@ -112,7 +112,7 @@ export function PrivacyPolicyPage({ language, onNavigateBack }: PrivacyPolicyPag
             'Nous utilisons les conversations uniquement pour fournir le service et améliorer la qualité des réponses',
             'Nous pouvons analyser les données de manière agrégée et anonyme pour améliorer les performances',
             'Nous n\'utilisons pas vos conversations pour entraîner des modèles d\'IA personnalisés sans votre consentement explicite',
-            'Nous utilisons OpenRouter et Google Gemini pour le traitement des réponses',
+            'Nous utilisons OpenRouter pour le traitement des réponses',
             'Utilisateurs gratuits: 10 messages/jour, abonnés Pro: messages illimités',
             'Nous ne vendons pas vos données à des tiers'
           ]
@@ -188,7 +188,7 @@ export function PrivacyPolicyPage({ language, onNavigateBack }: PrivacyPolicyPag
             'We use AI assistant conversations only to provide the service and improve response quality',
             'We may analyze data in an aggregated and anonymous manner to improve performance',
             'We do not use your conversations to train custom AI models without your explicit consent',
-            'We use OpenRouter and Google Gemini for response processing',
+            'We use OpenRouter for response processing',
             'Free users: 10 messages/day, Pro subscribers: unlimited messages',
             'We do not sell your data or conversations to third parties'
           ]

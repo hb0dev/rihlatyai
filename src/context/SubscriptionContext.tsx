@@ -1,46 +1,80 @@
 import { createContext, useContext, useState, useEffect, ReactNode, useCallback } from 'react';
-import { doc, onSnapshot, setDoc, increment, serverTimestamp } from 'firebase/firestore';
+import { doc, onSnapshot } from 'firebase/firestore';
 import { db } from '../config/firebase';
 import { useAuth } from './AuthContext';
 import { SubscriptionData } from './AuthContext';
 
-const FREE_DAILY_LIMIT = 10;
-const PRO_DAILY_LIMIT = 60;
+// Monthly token quotas. Must stay in sync with the QUOTAS table in worker.js.
+export const QUOTAS = {
+  free: {
+    kimiInput: 60_000,
+    kimiOutput: 40_000,
+    thinkingInput: 0,
+    thinkingOutput: 0,
+  },
+  pro: {
+    kimiInput: 800_000,
+    kimiOutput: 700_000,
+    thinkingInput: 150_000,
+    thinkingOutput: 150_000,
+  },
+} as const;
+
+export interface TokenUsage {
+  kimiInput: number;
+  kimiOutput: number;
+  thinkingInput: number;
+  thinkingOutput: number;
+}
 
 interface SubscriptionContextType {
   plan: 'free' | 'pro';
   isPro: boolean;
   expiresAt: string | null;
-  dailyMessageCount: number;
-  dailyMessageLimit: number;
-  canSendMessage: boolean;
-  messagesRemaining: number;
-  incrementMessageCount: () => Promise<void>;
+
+  usage: TokenUsage;
+  limits: TokenUsage;
+
+  /** `true` if the user still has quota on at least one direction of the Kimi bucket. */
+  canSendKimi: boolean;
+  /** `true` if the user is Pro AND still has quota on the Thinking bucket. */
+  canSendThinking: boolean;
+
   showUpgradeModal: boolean;
   setShowUpgradeModal: (show: boolean) => void;
-  refreshSubscription: () => void;
 }
 
 const SubscriptionContext = createContext<SubscriptionContextType | undefined>(undefined);
 
-function getTodayKey() {
-  return new Date().toISOString().split('T')[0];
+function getMonthKey() {
+  const now = new Date();
+  const y = now.getUTCFullYear();
+  const m = String(now.getUTCMonth() + 1).padStart(2, '0');
+  return `${y}-${m}`;
 }
 
-function sanitizeCount(raw: unknown): number {
+function sanitizeTokenCount(raw: unknown): number {
   const n = Number(raw);
-  if (!Number.isFinite(n) || !Number.isInteger(n)) return 0;
-  if (n < 0) return 0;
-  if (n > 10000) return 10000;
-  return n;
+  if (!Number.isFinite(n) || n < 0) return 0;
+  // Soft ceiling so a corrupt Firestore document can't crash the UI.
+  if (n > 10_000_000) return 10_000_000;
+  return Math.floor(n);
 }
+
+const EMPTY_USAGE: TokenUsage = {
+  kimiInput: 0,
+  kimiOutput: 0,
+  thinkingInput: 0,
+  thinkingOutput: 0,
+};
 
 export function SubscriptionProvider({ children }: { children: ReactNode }) {
   const { user } = useAuth();
   const [subscription, setSubscription] = useState<SubscriptionData>({ plan: 'free' });
-  const [dailyMessageCount, setDailyMessageCount] = useState(0);
+  const [usage, setUsage] = useState<TokenUsage>(EMPTY_USAGE);
   const [showUpgradeModal, setShowUpgradeModal] = useState(false);
 
+  // Subscribe to the user document to track plan status.
   useEffect(() => {
     if (!user) {
       setSubscription({ plan: 'free' });
@@ -66,28 +100,39 @@ export function SubscriptionProvider({ children }: { children: ReactNode }) {
     return () => unsubscribe();
   }, [user]);
 
+  // Subscribe to the current month's usage document (written by the Worker).
   useEffect(() => {
     if (!user) {
-      setDailyMessageCount(0);
+      setUsage(EMPTY_USAGE);
       return;
     }
 
-    const today = getTodayKey();
-    const usageRef = doc(db, 'users', user.uid, 'usage', today);
+    const month = getMonthKey();
+    const usageRef = doc(db, 'users', user.uid, 'usage', month);
 
     const unsub = onSnapshot(
       usageRef,
       (snap) => {
         if (snap.exists()) {
-          const data = snap.data();
-          setDailyMessageCount(sanitizeCount(data?.count));
+          const data = snap.data() || {};
+          // Defend against a stale document lingering from a previous month.
+          if (data.month && data.month !== month) {
+            setUsage(EMPTY_USAGE);
+            return;
+          }
+          setUsage({
+            kimiInput: sanitizeTokenCount(data.kimiInput),
+            kimiOutput: sanitizeTokenCount(data.kimiOutput),
+            thinkingInput: sanitizeTokenCount(data.thinkingInput),
+            thinkingOutput: sanitizeTokenCount(data.thinkingOutput),
+          });
         } else {
-          setDailyMessageCount(0);
+          setUsage(EMPTY_USAGE);
         }
       },
       (err) => {
         console.error('Usage snapshot error:', err);
-        setDailyMessageCount(0);
+        setUsage(EMPTY_USAGE);
       }
     );
 
@@ -95,32 +140,18 @@ export function SubscriptionProvider({ children }: { children: ReactNode }) {
   }, [user]);
 
   const isPro = subscription.plan === 'pro';
-  const dailyMessageLimit = isPro ? PRO_DAILY_LIMIT : FREE_DAILY_LIMIT;
-  const messagesRemaining = Math.max(0, dailyMessageLimit - dailyMessageCount);
-  const canSendMessage = dailyMessageCount < dailyMessageLimit;
+  const limits: TokenUsage = isPro ? { ...QUOTAS.pro } : { ...QUOTAS.free };
 
-  const incrementMessageCount = useCallback(async () => {
-    if (!user) return;
-    const today = getTodayKey();
-    const usageRef = doc(db, 'users', user.uid, 'usage', today);
-    try {
-      await setDoc(
-        usageRef,
-        {
-          date: today,
-          count: increment(1),
-          updatedAt: serverTimestamp(),
-        },
-        { merge: true }
-      );
-    } catch (err) {
-      console.error('Failed to increment message count:', err);
-    }
-  }, [user]);
+  const canSendKimi =
+    usage.kimiInput < limits.kimiInput && usage.kimiOutput < limits.kimiOutput;
+  const canSendThinking =
+    isPro &&
+    usage.thinkingInput < limits.thinkingInput &&
+    usage.thinkingOutput < limits.thinkingOutput;
 
-  const refreshSubscription = useCallback(() => {
-    // onSnapshot handles refreshes automatically
-  }, []);
+  // No-op kept for API compatibility with older callers.
+  const noop = useCallback(() => {}, []);
+  void noop;
 
   return (
     <SubscriptionContext.Provider
@@ -128,14 +159,12 @@ export function SubscriptionProvider({ children }: { children: ReactNode }) {
         plan: subscription.plan,
         isPro,
         expiresAt: subscription.expiresAt || null,
-        dailyMessageCount,
-        dailyMessageLimit,
-        canSendMessage,
-        messagesRemaining,
-        incrementMessageCount,
+        usage,
+        limits,
+        canSendKimi,
+        canSendThinking,
         showUpgradeModal,
         setShowUpgradeModal,
-        refreshSubscription,
       }}
     >
       {children}

@@ -1,103 +1,162 @@
 import { useState, useRef, useEffect } from 'react';
 import { motion, AnimatePresence } from 'motion/react';
-import { Send, Bot, User, ArrowRight, Loader2, Sparkles, Menu, X, MessageSquare, Plus, Trash2, Zap, Star, MapPin, Phone, Search, Globe, CheckCircle2, Lock } from 'lucide-react';
+import { Send, Bot, User, ArrowRight, Loader2, Sparkles, Menu, X, MessageSquare, Plus, Trash2, Star, MapPin, Phone, Lock, Globe, Brain, ChevronDown, ChevronUp, ExternalLink, Check } from 'lucide-react';
 import aiLogo from '../logo/ailogo.png';
 import { useLocation } from '../context/LocationContext';
 import { useAuth } from '../context/AuthContext';
 import { useSubscription } from '../context/SubscriptionContext';
 import { LocationPrompt } from './LocationPrompt';
-import { sendMessageToAI, getQuickSuggestions, Place, UserContext, AIModel } from '../services/aiService';
+import { sendMessageToAI, getQuickSuggestions, Place, UserContext, AIModel, Citation } from '../services/aiService';
 import { collection, doc, setDoc, getDocs, query, orderBy, updateDoc } from 'firebase/firestore';
 import { db } from '../config/firebase';
 import { WORKER_URL } from '../config/apiKeys';
-const thinkingSteps = {
-  ar: [
-    { icon: Search, text: 'البحث في الويب...' },
-    { icon: Globe, text: 'تحليل البيانات...' },
-    { icon: MapPin, text: 'البحث عن الأماكن...' },
-  ],
-  fr: [
-    { icon: Search, text: 'Recherche sur le web...' },
-    { icon: Globe, text: 'Analyse des données...' },
-    { icon: MapPin, text: 'Recherche de lieux...' },
-  ],
-  en: [
-    { icon: Search, text: 'Searching the web...' },
-    { icon: Globe, text: 'Analyzing data...' },
-    { icon: MapPin, text: 'Finding places...' },
-  ],
-};
-function ThinkingSteps({ language, model }: { language: string; model: AIModel }) {
-  const [currentStep, setCurrentStep] = useState(0);
-  const [completedSteps, setCompletedSteps] = useState<number[]>([]);
-  const steps = thinkingSteps[language as keyof typeof thinkingSteps] || thinkingSteps.en;
-  useEffect(() => {
-    if (model !== 'gemini') return;
-    const interval = setInterval(() => {
-      setCurrentStep(prev => {
-        const next = prev + 1;
-        if (next < steps.length) {
-          setCompletedSteps(c => [...c, prev]);
-          return next;
-        }
-        return prev;
-      });
-    }, 2500);
-    return () => clearInterval(interval);
-  }, [model, steps.length]);
 
-  if (model !== 'gemini') {
-    return (
-      <div className="flex items-center gap-1.5 px-1">
-        <motion.span className="w-2 h-2 bg-teal-500 rounded-full" animate={{ y: [0, -6, 0] }} transition={{ duration: 0.6, repeat: Infinity, delay: 0 }} />
-        <motion.span className="w-2 h-2 bg-teal-500 rounded-full" animate={{ y: [0, -6, 0] }} transition={{ duration: 0.6, repeat: Infinity, delay: 0.2 }} />
-        <motion.span className="w-2 h-2 bg-teal-500 rounded-full" animate={{ y: [0, -6, 0] }} transition={{ duration: 0.6, repeat: Infinity, delay: 0.4 }} />
-      </div>
-    );
-  }
+function ThinkingDots() {
+  return (
+    <div className="flex items-center gap-1.5 px-1">
+      <motion.span className="w-2 h-2 bg-teal-500 rounded-full" animate={{ y: [0, -6, 0] }} transition={{ duration: 0.6, repeat: Infinity, delay: 0 }} />
+      <motion.span className="w-2 h-2 bg-teal-500 rounded-full" animate={{ y: [0, -6, 0] }} transition={{ duration: 0.6, repeat: Infinity, delay: 0.2 }} />
+      <motion.span className="w-2 h-2 bg-teal-500 rounded-full" animate={{ y: [0, -6, 0] }} transition={{ duration: 0.6, repeat: Infinity, delay: 0.4 }} />
+    </div>
+  );
+}
+
+function UsageBar({
+  label,
+  inputUsed,
+  inputLimit,
+  outputUsed,
+  outputLimit,
+  inputLabel,
+  outputLabel,
+}: {
+  label: string;
+  inputUsed: number;
+  inputLimit: number;
+  outputUsed: number;
+  outputLimit: number;
+  inputLabel: string;
+  outputLabel: string;
+}) {
+  const fmt = (n: number) => {
+    if (n >= 1000) return `${(n / 1000).toFixed(n >= 10000 ? 0 : 1)}K`;
+    return n.toString();
+  };
+  const pct = (used: number, limit: number) => {
+    if (!limit) return 0;
+    return Math.min(100, Math.round((used / limit) * 100));
+  };
+  const inputPct = pct(inputUsed, inputLimit);
+  const outputPct = pct(outputUsed, outputLimit);
+  const barColor = (p: number) =>
+    p >= 90 ? 'bg-red-500' : p >= 70 ? 'bg-amber-500' : 'bg-teal-500';
 
   return (
-    <div className="min-w-[180px] space-y-2.5">
-      {steps.map((step, i) => {
-        const isCompleted = completedSteps.includes(i);
-        const isCurrent = i === currentStep;
-        const isPending = i > currentStep;
-        const Icon = step.icon;
-
-        if (isPending) return null;
-
-        return (
-          <motion.div
-            key={i}
-            initial={{ opacity: 0, y: 4 }}
-            animate={{ opacity: 1, y: 0 }}
-            transition={{ duration: 0.2 }}
-            className="flex items-center gap-2"
-          >
-            {isCompleted ? (
-              <CheckCircle2 className="w-3.5 h-3.5 text-teal-500 flex-shrink-0" />
-            ) : (
-              <motion.div animate={{ rotate: 360 }} transition={{ duration: 1.5, repeat: Infinity, ease: 'linear' }}>
-                <Icon className="w-3.5 h-3.5 text-gray-400 dark:text-gray-500 flex-shrink-0" />
-              </motion.div>
-            )}
-            <span className={`text-[13px] ${
-              isCompleted
-                ? 'text-gray-400 dark:text-gray-500'
-                : 'text-gray-600 dark:text-gray-300'
-            }`}>
-              {step.text}
+    <div>
+      <p className="text-[13px] font-semibold text-gray-700 dark:text-gray-200 mb-2">{label}</p>
+      <div className="space-y-2">
+        <div>
+          <div className="flex items-center justify-between mb-1">
+            <span className="text-[11px] text-gray-500 dark:text-gray-400">{inputLabel}</span>
+            <span className="text-[11px] font-medium text-gray-600 dark:text-gray-300 tabular-nums">
+              {fmt(inputUsed)} / {fmt(inputLimit)}
             </span>
-            {isCurrent && (
-              <motion.span
-                animate={{ opacity: [1, 0.2, 1] }}
-                transition={{ duration: 1, repeat: Infinity }}
-                className="w-1 h-1 bg-teal-500 rounded-full ml-0.5"
-              />
-            )}
+          </div>
+          <div className="h-1.5 bg-slate-100 dark:bg-dark-card-high rounded-full overflow-hidden">
+            <div className={`h-full rounded-full ${barColor(inputPct)} transition-all`} style={{ width: `${inputPct}%` }} />
+          </div>
+        </div>
+        <div>
+          <div className="flex items-center justify-between mb-1">
+            <span className="text-[11px] text-gray-500 dark:text-gray-400">{outputLabel}</span>
+            <span className="text-[11px] font-medium text-gray-600 dark:text-gray-300 tabular-nums">
+              {fmt(outputUsed)} / {fmt(outputLimit)}
+            </span>
+          </div>
+          <div className="h-1.5 bg-slate-100 dark:bg-dark-card-high rounded-full overflow-hidden">
+            <div className={`h-full rounded-full ${barColor(outputPct)} transition-all`} style={{ width: `${outputPct}%` }} />
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+function ReasoningBlock({ text, showLabel, hideLabel }: { text: string; showLabel: string; hideLabel: string }) {
+  const [open, setOpen] = useState(false);
+  return (
+    <div className="mb-2 rounded-xl bg-slate-50 dark:bg-dark-card-high border border-gray-100 dark:border-gray-700/40 overflow-hidden">
+      <button
+        onClick={() => setOpen(v => !v)}
+        className="w-full flex items-center gap-2 px-3 py-2 text-start hover:bg-slate-100 dark:hover:bg-dark-surface transition-colors"
+      >
+        <Brain className="w-3.5 h-3.5 text-teal-500 dark:text-teal-400 flex-shrink-0" strokeWidth={2} />
+        <span className="text-[12px] font-semibold text-gray-600 dark:text-gray-300 flex-1">
+          {open ? hideLabel : showLabel}
+        </span>
+        {open ? (
+          <ChevronUp className="w-3.5 h-3.5 text-gray-400 dark:text-gray-500" />
+        ) : (
+          <ChevronDown className="w-3.5 h-3.5 text-gray-400 dark:text-gray-500" />
+        )}
+      </button>
+      <AnimatePresence initial={false}>
+        {open && (
+          <motion.div
+            initial={{ height: 0, opacity: 0 }}
+            animate={{ height: 'auto', opacity: 1 }}
+            exit={{ height: 0, opacity: 0 }}
+            transition={{ duration: 0.2 }}
+            className="overflow-hidden"
+          >
+            <div className="px-3 pb-3 pt-1 border-t border-gray-100 dark:border-gray-700/40">
+              <p className="text-[12px] leading-relaxed text-gray-500 dark:text-gray-400 whitespace-pre-line" dir="auto">
+                {text}
+              </p>
+            </div>
           </motion.div>
-        );
-      })}
+        )}
+      </AnimatePresence>
+    </div>
+  );
+}
+
+function SourcesList({ citations, label }: { citations: Citation[]; label: string }) {
+  if (!citations || citations.length === 0) return null;
+  return (
+    <div className="mt-2.5 pt-2.5 border-t border-gray-100 dark:border-gray-700/40">
+      <div className="flex items-center gap-1.5 mb-1.5">
+        <Globe className="w-3 h-3 text-teal-500 dark:text-teal-400" strokeWidth={2} />
+        <span className="text-[11px] font-bold uppercase tracking-wider text-gray-400 dark:text-gray-500">
+          {label}
+        </span>
+      </div>
+      <div className="space-y-1">
+        {citations.map((c, i) => {
+          let host = '';
+          try {
+            host = new URL(c.url).hostname.replace(/^www\./, '');
+          } catch {
+            host = c.url;
+          }
+          return (
+            <a
+              key={i}
+              href={c.url}
+              target="_blank"
+              rel="noopener noreferrer"
+              className="flex items-center gap-1.5 text-[12px] text-teal-600 dark:text-teal-400 hover:underline"
+              dir="ltr"
+            >
+              <span className="flex items-center justify-center w-4 h-4 rounded-full bg-teal-100 dark:bg-teal-900/40 text-[9px] font-bold text-teal-600 dark:text-teal-300 flex-shrink-0">
+                {i + 1}
+              </span>
+              <span className="truncate flex-1">{c.title || host}</span>
+              <ExternalLink className="w-3 h-3 flex-shrink-0 opacity-60" />
+            </a>
+          );
+        })}
+      </div>
     </div>
   );
 }
@@ -239,6 +298,9 @@ interface Message {
   text: string;
   timestamp: Date;
   model?: AIModel;
+  reasoning?: string;
+  citations?: Citation[];
+  usedWebSearch?: boolean;
 }
 interface SavedConversation {
   id: string;
@@ -254,8 +316,10 @@ export function AIPage({ language, onNavigateBack }: AIPageProps) {
   const [isLoading, setIsLoading] = useState(false);
   const [conversationHistory, setConversationHistory] = useState<{ role: 'user' | 'model'; text: string }[]>([]);
   const [placesData, setPlacesData] = useState<Place[]>([]);
-  const [selectedModel, setSelectedModel] = useState<AIModel>('openrouter');
   const [requestingLocation, setRequestingLocation] = useState(false);
+  const [selectedModel, setSelectedModel] = useState<AIModel>('kimi');
+  const [useWebSearch, setUseWebSearch] = useState(false);
+  const [showModelPicker, setShowModelPicker] = useState(false);
   const [sidebarOpen, setSidebarOpen] = useState(false);
   const [savedConversations, setSavedConversations] = useState<SavedConversation[]>([]);
   const [currentConversationId, setCurrentConversationId] = useState<string | null>(null);
@@ -264,7 +328,7 @@ export function AIPage({ language, onNavigateBack }: AIPageProps) {
   const inputRef = useRef<HTMLTextAreaElement>(null);
   const { userLocation, isLoading: locationLoading, requestLocationPermission } = useLocation();
   const { user } = useAuth();
-  const { canSendMessage, messagesRemaining, dailyMessageLimit, isPro, incrementMessageCount, setShowUpgradeModal } = useSubscription();
+  const { canSendKimi, canSendThinking, usage, limits, isPro, setShowUpgradeModal } = useSubscription();
   useEffect(() => {
     const loadConversations = async () => {
       if (!user) {
@@ -454,8 +518,22 @@ export function AIPage({ language, onNavigateBack }: AIPageProps) {
       history: 'المحادثات السابقة',
       noHistory: 'لا توجد محادثات سابقة',
       deleteChat: 'حذف',
-      modelOpenRouter: 'Gemini 2.0',
-      modelGemini: 'Gemini 3 Flash',
+      modelKimi: 'Kimi K2.5',
+      modelKimiThinking: 'Kimi K2.5 Thinking',
+      modelKimiDesc: 'ردود سريعة ودقيقة',
+      modelThinkingDesc: 'تفكير عميق خطوة بخطوة',
+      proOnly: 'حصري Pro',
+      webSearch: 'البحث في الويب',
+      webSearchOn: 'البحث في الويب مُفعّل',
+      thinking: 'التفكير',
+      showThinking: 'عرض التفكير',
+      hideThinking: 'إخفاء التفكير',
+      sources: 'المصادر',
+      usageTitle: 'الاستخدام الشهري',
+      kimiTokens: 'رسائل Kimi',
+      thinkingTokens: 'تفكير عميق',
+      inputTokens: 'إدخال',
+      outputTokens: 'إخراج',
     },
     fr: {
       title: 'RIHLATY-AI',
@@ -472,8 +550,22 @@ export function AIPage({ language, onNavigateBack }: AIPageProps) {
       history: 'Historique des discussions',
       noHistory: 'Aucune discussion précédente',
       deleteChat: 'Supprimer',
-      modelOpenRouter: 'Gemini 2.0',
-      modelGemini: 'Gemini 3 Flash',
+      modelKimi: 'Kimi K2.5',
+      modelKimiThinking: 'Kimi K2.5 Thinking',
+      modelKimiDesc: 'Réponses rapides et précises',
+      modelThinkingDesc: 'Raisonnement approfondi',
+      proOnly: 'Exclusif Pro',
+      webSearch: 'Recherche web',
+      webSearchOn: 'Recherche web activée',
+      thinking: 'Raisonnement',
+      showThinking: 'Afficher le raisonnement',
+      hideThinking: 'Masquer le raisonnement',
+      sources: 'Sources',
+      usageTitle: 'Usage mensuel',
+      kimiTokens: 'Messages Kimi',
+      thinkingTokens: 'Raisonnement',
+      inputTokens: 'Entrée',
+      outputTokens: 'Sortie',
     },
     en: {
       title: 'RIHLATY-AI',
@@ -490,8 +582,22 @@ export function AIPage({ language, onNavigateBack }: AIPageProps) {
       history: 'Chat History',
       noHistory: 'No previous chats',
       deleteChat: 'Delete',
-      modelOpenRouter: 'Gemini 2.0',
-      modelGemini: 'Gemini 3 Flash',
+      modelKimi: 'Kimi K2.5',
+      modelKimiThinking: 'Kimi K2.5 Thinking',
+      modelKimiDesc: 'Fast, accurate answers',
+      modelThinkingDesc: 'Deep step-by-step reasoning',
+      proOnly: 'Pro only',
+      webSearch: 'Web search',
+      webSearchOn: 'Web search enabled',
+      thinking: 'Thinking',
+      showThinking: 'Show thinking',
+      hideThinking: 'Hide thinking',
+      sources: 'Sources',
+      usageTitle: 'Monthly usage',
+      kimiTokens: 'Kimi messages',
+      thinkingTokens: 'Deep thinking',
+      inputTokens: 'Input',
+      outputTokens: 'Output',
     }
   };
 
@@ -506,7 +612,14 @@ export function AIPage({ language, onNavigateBack }: AIPageProps) {
   const handleSendMessage = async (text: string) => {
     if (!text.trim() || isLoading) return;
 
-    if (!canSendMessage) {
+    // Pre-flight quota check. The Worker also enforces this server-side,
+    // but blocking here avoids a pointless round-trip and shows the upgrade
+    // modal straight away.
+    if (selectedModel === 'kimi-thinking' && !canSendThinking) {
+      setShowUpgradeModal(true);
+      return;
+    }
+    if (selectedModel === 'kimi' && !canSendKimi) {
       setShowUpgradeModal(true);
       return;
     }
@@ -521,7 +634,7 @@ export function AIPage({ language, onNavigateBack }: AIPageProps) {
     setMessages(prev => [...prev, userMessage]);
     setInputText('');
     setIsLoading(true);
-    
+
     const userContext: UserContext = {
       coordinates: userLocation ? { lat: userLocation.lat, lon: userLocation.lng } : null,
       locationLabel: userLocation?.address || 'غير محدد',
@@ -534,7 +647,7 @@ export function AIPage({ language, onNavigateBack }: AIPageProps) {
         userContext,
         placesData,
         conversationHistory,
-        selectedModel
+        { model: selectedModel, useWebSearch }
       );
 
       const aiMessage: Message = {
@@ -542,7 +655,10 @@ export function AIPage({ language, onNavigateBack }: AIPageProps) {
         type: 'ai',
         text: response.text,
         timestamp: new Date(),
-        model: selectedModel
+        model: selectedModel,
+        reasoning: response.reasoning,
+        citations: response.citations,
+        usedWebSearch: useWebSearch,
       };
 
       setMessages(prev => [...prev, aiMessage]);
@@ -551,7 +667,12 @@ export function AIPage({ language, onNavigateBack }: AIPageProps) {
         { role: 'user', text: userText },
         { role: 'model', text: response.text }
       ]);
-      incrementMessageCount();
+
+      // Server-side quota errors are surfaced as a normal AI message with an
+      // upgrade prompt. If the Worker refused outright, open the modal.
+      if (response.errorCode === 'pro_required' || response.errorCode === 'quota_exceeded') {
+        setShowUpgradeModal(true);
+      }
 
     } catch (error) {
       console.error('Error sending message:', error);
@@ -736,38 +857,6 @@ export function AIPage({ language, onNavigateBack }: AIPageProps) {
             </div>
           </div>
           <div className="flex items-center gap-2">
-            <button
-              onClick={() => !isPro && setShowUpgradeModal(true)}
-              className={`px-2.5 py-1.5 rounded-xl flex items-center gap-1.5 text-xs font-bold transition-colors ${
-                messagesRemaining <= 3 && !isPro ? 'bg-red-500/30 border border-red-300/40 text-red-100'
-                : messagesRemaining <= 5 && !isPro ? 'bg-amber-500/30 border border-amber-300/40 text-amber-100'
-                : 'bg-white/15 text-white/90'
-              }`}
-            >
-              <MessageSquare className="w-3.5 h-3.5" />
-              <span>{messagesRemaining}/{dailyMessageLimit}</span>
-            </button>
-            <motion.button
-              whileTap={{ scale: 0.95 }}
-              onClick={() => {
-                if (selectedModel === 'openrouter') {
-                  setSelectedModel('gemini');
-                } else {
-                  setSelectedModel('openrouter');
-                }
-              }}
-              className={`px-3 py-2 rounded-xl flex items-center gap-1.5 transition-colors ${
-                selectedModel === 'gemini' 
-                  ? 'bg-purple-500/30 border border-purple-300/40' 
-                  : 'bg-white/15 hover:bg-white/25'
-              }`}
-              title={selectedModel === 'gemini' ? t.modelGemini : t.modelOpenRouter}
-            >
-              <Zap className={`w-4 h-4 ${selectedModel === 'gemini' ? 'text-purple-200' : 'text-white/80'}`} />
-              <span className="text-white text-xs font-semibold">
-                {selectedModel === 'gemini' ? '3' : '2.0'}
-              </span>
-            </motion.button>
             {messages.length > 0 && (
               <motion.button
                 whileTap={{ scale: 0.95 }}
@@ -779,7 +868,147 @@ export function AIPage({ language, onNavigateBack }: AIPageProps) {
             )}
           </div>
         </div>
+
+        {/* Model selector + Web search toggle */}
+        <div className="flex items-center gap-2 mt-4">
+          <motion.button
+            whileTap={{ scale: 0.97 }}
+            onClick={() => setShowModelPicker(true)}
+            className="flex items-center gap-2 bg-white/15 hover:bg-white/25 transition-colors px-3 py-2 rounded-xl flex-1 min-w-0"
+          >
+            {selectedModel === 'kimi-thinking' ? (
+              <Brain className="w-4 h-4 text-white flex-shrink-0" strokeWidth={2} />
+            ) : (
+              <Sparkles className="w-4 h-4 text-white flex-shrink-0" strokeWidth={2} />
+            )}
+            <span className="text-white text-sm font-semibold truncate">
+              {selectedModel === 'kimi-thinking' ? t.modelKimiThinking : t.modelKimi}
+            </span>
+            <ChevronDown className="w-4 h-4 text-white/70 flex-shrink-0 ms-auto" />
+          </motion.button>
+
+          <motion.button
+            whileTap={{ scale: 0.95 }}
+            onClick={() => setUseWebSearch(v => !v)}
+            title={useWebSearch ? t.webSearchOn : t.webSearch}
+            className={`px-3 py-2 rounded-xl flex items-center gap-1.5 transition-colors ${
+              useWebSearch
+                ? 'bg-white text-teal-600 shadow-elevation-1'
+                : 'bg-white/15 text-white hover:bg-white/25'
+            }`}
+          >
+            <Globe className="w-4 h-4" strokeWidth={2} />
+            <span className="text-xs font-bold">{t.webSearch}</span>
+          </motion.button>
+        </div>
       </div>
+
+      {/* Model picker bottom sheet */}
+      <AnimatePresence>
+        {showModelPicker && (
+          <>
+            <motion.div
+              initial={{ opacity: 0 }}
+              animate={{ opacity: 1 }}
+              exit={{ opacity: 0 }}
+              onClick={() => setShowModelPicker(false)}
+              className="fixed inset-0 bg-black/50 z-50"
+            />
+            <motion.div
+              initial={{ y: '100%' }}
+              animate={{ y: 0 }}
+              exit={{ y: '100%' }}
+              transition={{ type: 'spring', damping: 30, stiffness: 300 }}
+              className="fixed bottom-0 left-0 right-0 bg-white dark:bg-dark-card rounded-t-3xl shadow-elevation-3 z-50 pb-6 safe-area-bottom"
+            >
+              <div className="flex justify-center pt-3 pb-2">
+                <div className="w-10 h-1 bg-gray-200 dark:bg-gray-700 rounded-full" />
+              </div>
+              <div className="px-5 pb-2">
+                {[
+                  { id: 'kimi' as AIModel, name: t.modelKimi, desc: t.modelKimiDesc, icon: Sparkles, locked: false },
+                  { id: 'kimi-thinking' as AIModel, name: t.modelKimiThinking, desc: t.modelThinkingDesc, icon: Brain, locked: !isPro },
+                ].map((m) => {
+                  const Icon = m.icon;
+                  const isSelected = selectedModel === m.id;
+                  return (
+                    <motion.button
+                      key={m.id}
+                      whileTap={{ scale: 0.98 }}
+                      onClick={() => {
+                        if (m.locked) {
+                          setShowModelPicker(false);
+                          setShowUpgradeModal(true);
+                          return;
+                        }
+                        setSelectedModel(m.id);
+                        setShowModelPicker(false);
+                      }}
+                      className={`w-full text-start flex items-center gap-3 p-4 rounded-2xl mb-2 transition-colors ${
+                        isSelected
+                          ? 'bg-teal-50 dark:bg-teal-900/30 border-2 border-teal-400 dark:border-teal-600'
+                          : 'bg-slate-50 dark:bg-dark-card-high border-2 border-transparent'
+                      }`}
+                    >
+                      <div className={`w-11 h-11 rounded-xl flex items-center justify-center flex-shrink-0 ${
+                        isSelected
+                          ? 'bg-teal-500 text-white'
+                          : 'bg-white dark:bg-dark-card text-teal-600 dark:text-teal-400'
+                      }`}>
+                        <Icon className="w-5 h-5" strokeWidth={2} />
+                      </div>
+                      <div className="flex-1 min-w-0">
+                        <div className="flex items-center gap-2">
+                          <p className="font-bold text-gray-800 dark:text-gray-100 text-sm">{m.name}</p>
+                          {m.locked && (
+                            <span className="bg-amber-100 dark:bg-amber-900/40 text-amber-700 dark:text-amber-300 text-[10px] font-bold px-1.5 py-0.5 rounded-md flex items-center gap-1">
+                              <Lock className="w-2.5 h-2.5" />
+                              {t.proOnly}
+                            </span>
+                          )}
+                        </div>
+                        <p className="text-xs text-gray-500 dark:text-gray-400 mt-0.5">{m.desc}</p>
+                      </div>
+                      {isSelected && (
+                        <Check className="w-5 h-5 text-teal-600 dark:text-teal-400 flex-shrink-0" strokeWidth={2.5} />
+                      )}
+                    </motion.button>
+                  );
+                })}
+
+                {/* Monthly usage summary */}
+                <div className="mt-4 pt-4 border-t border-gray-100 dark:border-gray-700/50">
+                  <p className="text-[11px] font-bold uppercase tracking-wider text-gray-400 dark:text-gray-500 mb-3">
+                    {t.usageTitle}
+                  </p>
+                  <UsageBar
+                    label={t.kimiTokens}
+                    inputUsed={usage.kimiInput}
+                    inputLimit={limits.kimiInput}
+                    outputUsed={usage.kimiOutput}
+                    outputLimit={limits.kimiOutput}
+                    inputLabel={t.inputTokens}
+                    outputLabel={t.outputTokens}
+                  />
+                  {isPro && (
+                    <div className="mt-3">
+                      <UsageBar
+                        label={t.thinkingTokens}
+                        inputUsed={usage.thinkingInput}
+                        inputLimit={limits.thinkingInput}
+                        outputUsed={usage.thinkingOutput}
+                        outputLimit={limits.thinkingOutput}
+                        inputLabel={t.inputTokens}
+                        outputLabel={t.outputTokens}
+                      />
+                    </div>
+                  )}
+                </div>
+              </div>
+            </motion.div>
+          </>
+        )}
+      </AnimatePresence>
 
       {/* Chat Container */}
       <div 
@@ -859,12 +1088,22 @@ export function AIPage({ language, onNavigateBack }: AIPageProps) {
                     }`}>
                       {message.type === 'ai' ? (
                         <div className="text-[14px] leading-relaxed" dir="auto">
+                          {message.reasoning && (
+                            <ReasoningBlock
+                              text={message.reasoning}
+                              showLabel={t.showThinking}
+                              hideLabel={t.hideThinking}
+                            />
+                          )}
                           {parseMessageContent(message.text).map((part, i) =>
                             part.type === 'place' ? (
                               <AIPlaceCard key={i} placeId={part.placeId!} placeName={part.placeName!} language={language} />
                             ) : (
                               <p key={i} className="whitespace-pre-line">{part.content}</p>
                             )
+                          )}
+                          {message.citations && message.citations.length > 0 && (
+                            <SourcesList citations={message.citations} label={t.sources} />
                           )}
                         </div>
                       ) : (
@@ -893,7 +1132,7 @@ export function AIPage({ language, onNavigateBack }: AIPageProps) {
                       <Bot className="w-4 h-4 text-gray-600 dark:text-gray-300" />
                     </div>
                     <div className="bg-white dark:bg-dark-card rounded-2xl rounded-tl-md shadow-elevation-1 px-4 py-3.5">
-                      <ThinkingSteps language={language} model={selectedModel} />
+                      <ThinkingDots />
                     </div>
                   </div>
                 </motion.div>

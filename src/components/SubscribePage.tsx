@@ -13,7 +13,7 @@ interface SubscribePageProps {
 }
 export function SubscribePage({ language, onNavigateBack }: SubscribePageProps) {
   const { user, loading: authLoading, signInWithGoogle } = useAuth();
-  const { isPro, expiresAt, refreshSubscription } = useSubscription();
+  const { isPro, expiresAt } = useSubscription();
   const [selectedPlan, setSelectedPlan] = useState<BillingPeriod>('yearly');
   const [loading, setLoading] = useState(false);
   const [signingIn, setSigningIn] = useState(false);
@@ -57,9 +57,9 @@ export function SubscribePage({ language, onNavigateBack }: SubscribePageProps) 
       if (data.status === 'paid') {
         // Subscription is written to Firestore server-side by the Worker
         // (using a Firebase service account) so it cannot be forged by the
-        // client. We only need to refresh local state and clean up.
+        // client. The onSnapshot listener in SubscriptionContext will pick
+        // up the change automatically; we just clean up the URL.
         setPaymentSuccess(true);
-        refreshSubscription();
         localStorage.removeItem('rihlaty_checkout_id');
         window.history.replaceState({}, '', '/subscribe');
       } else if (data.status === 'pending') {
@@ -257,9 +257,10 @@ export function SubscribePage({ language, onNavigateBack }: SubscribePageProps) 
                 <div className="bg-teal-500/10 text-teal-400 text-xs font-bold uppercase tracking-wider py-2 rounded-xl">Pro</div>
               </div>
               {[
-                { icon: MessageSquare, label: t.featureMessages, free: `10/${t.day}`, pro: `60/${t.day}` },
+                { icon: Zap, label: t.featureKimi, free: '~80', pro: '~1,000' },
+                { icon: MessageSquare, label: t.featureThinking, free: false, pro: '~150' },
                 { icon: Image, label: t.featurePhotos, free: false, pro: true },
-                { icon: Zap, label: t.featureGemini, free: true, pro: true },
+                { icon: Zap, label: t.featureAI, free: true, pro: true },
               ].map((feat, i) => (
                 <div key={i} className="grid grid-cols-3 gap-3 items-center py-3 border-t border-gray-800/40">
                   <div className="flex items-center gap-2.5">
@@ -304,14 +305,14 @@ export function SubscribePage({ language, onNavigateBack }: SubscribePageProps) 
                       {period === 'monthly' ? t.monthly : t.yearly}
                     </p>
                     <p className={`text-2xl font-bold ${active ? 'text-white' : 'text-gray-300'}`}>
-                      {period === 'monthly' ? '$3.99' : '$39.99'}
+                      {period === 'monthly' ? '$6.99' : '$79.99'}
                     </p>
                     <p className={`text-xs mt-0.5 ${active ? 'text-gray-400' : 'text-gray-500'}`}>
-                      {period === 'monthly' ? `≈ 550 ${t.dzd}` : `≈ 5,500 ${t.dzd}`}
+                      {period === 'monthly' ? `1,800 ${t.dzd}` : `19,900 ${t.dzd}`}
                     </p>
                     {period === 'yearly' && (
                       <p className={`text-xs mt-1 ${active ? 'text-teal-400' : 'text-gray-500'}`}>
-                        ≈ $3.33/{t.monthShort}
+                        ≈ $6.67/{t.monthShort}
                       </p>
                     )}
                   </button>
@@ -370,12 +371,14 @@ const translations = {
     alreadyProDesc: 'استمتع بجميع المميزات بلا حدود',
     expires: 'ينتهي في',
     featureMessages: 'رسائل AI',
+    featureKimi: 'رسائل Kimi K2.5 شهرياً',
+    featureThinking: 'تفكير عميق شهرياً',
     featurePhotos: 'صور الأماكن',
-    featureGemini: 'Gemini AI',
+    featureAI: 'البحث في الويب',
     day: 'يوم',
     monthly: 'شهري',
     yearly: 'سنوي',
-    save: 'وفّر 17%',
+    save: 'وفّر 5%',
     dzd: 'د.ج',
     monthShort: 'شهر',
     subscribeBtn: 'اشترك الآن',
@@ -404,12 +407,14 @@ const translations = {
     alreadyProDesc: 'Profitez de toutes les fonctionnalités sans limites',
     expires: 'Expire le',
     featureMessages: 'Messages AI',
+    featureKimi: 'Messages Kimi K2.5 / mois',
+    featureThinking: 'Raisonnement profond / mois',
     featurePhotos: 'Photos des lieux',
-    featureGemini: 'Gemini AI',
+    featureAI: 'Recherche web',
     day: 'jour',
     monthly: 'Mensuel',
     yearly: 'Annuel',
-    save: 'Économisez 17%',
+    save: 'Économisez 5%',
     dzd: 'DA',
     monthShort: 'mois',
     subscribeBtn: "S'abonner maintenant",
@@ -438,12 +443,14 @@ const translations = {
     alreadyProDesc: 'Enjoy all features without limits',
     expires: 'Expires on',
     featureMessages: 'AI Messages',
+    featureKimi: 'Kimi K2.5 messages / month',
+    featureThinking: 'Deep thinking / month',
     featurePhotos: 'Place Photos',
-    featureGemini: 'Gemini AI',
+    featureAI: 'Web search',
     day: 'day',
     monthly: 'Monthly',
     yearly: 'Yearly',
-    save: 'Save 17%',
+    save: 'Save 5%',
     dzd: 'DZD',
     monthShort: 'mo',
     subscribeBtn: 'Subscribe Now',

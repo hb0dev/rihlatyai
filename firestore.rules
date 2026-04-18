@@ -48,35 +48,21 @@ service cloud.firestore {
       allow delete: if request.auth != null && request.auth.uid == uid;
 
       // ------------------------------------------------------------------
-      // users/{uid}/usage/{YYYY-MM-DD}
+      // users/{uid}/usage/{YYYY-MM}
       //
-      // Daily AI message counter. Used to enforce free/pro daily limits.
-      // The counter is INCREMENT-ONLY by +1 per write. Clients cannot
-      // reset it to zero, set it negative, or skip ahead.
+      // Monthly AI token usage. Tracks four counters per calendar month:
+      //   - kimiInput, kimiOutput         (Kimi K2.5)
+      //   - thinkingInput, thinkingOutput (Kimi K2.5 Thinking)
+      //
+      // The owner can READ their own counters to display remaining quota,
+      // but WRITES are rejected for all clients. The Cloudflare Worker
+      // `/ai` endpoint writes these counters using a Firebase service
+      // account (which bypasses these rules), based on the actual token
+      // usage reported by OpenRouter — so the client cannot forge them.
       // ------------------------------------------------------------------
-      match /usage/{dateStr} {
-
+      match /usage/{monthStr} {
         allow read: if request.auth != null && request.auth.uid == uid;
-
-        // First write of the day: count must be exactly 1
-        allow create: if request.auth != null
-          && request.auth.uid == uid
-          && request.resource.data.count is int
-          && request.resource.data.count == 1
-          && request.resource.data.date is string
-          && request.resource.data.date == dateStr;
-
-        // Subsequent writes: count must increment by exactly +1
-        // and must not exceed a hard cap (defense in depth vs. runaway).
-        allow update: if request.auth != null
-          && request.auth.uid == uid
-          && request.resource.data.count is int
-          && request.resource.data.count == resource.data.count + 1
-          && request.resource.data.count <= 1000
-          && request.resource.data.date == resource.data.date;
-
-        // Counters can never be deleted by clients.
-        allow delete: if false;
+        allow write: if false;
       }
 
       // ------------------------------------------------------------------

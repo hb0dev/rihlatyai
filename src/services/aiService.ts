@@ -1,5 +1,13 @@
 import { WORKER_URL, getAuthBearerHeader } from '../config/apiKeys';
-export type AIModel = 'openrouter' | 'gemini';
+export type AIModel = 'kimi' | 'kimi-thinking';
+
+export interface Citation {
+  url: string;
+  title: string;
+  startIndex?: number;
+  endIndex?: number;
+}
+
 export interface Place {
   id: string;
   name: string;
@@ -32,8 +40,11 @@ export interface UserContext {
 }
 export interface AIResponse {
   text: string;
+  reasoning?: string;
+  citations?: Citation[];
   places?: Place[];
   error?: string;
+  errorCode?: 'quota_exceeded' | 'pro_required' | 'unknown';
 }
 
 export const calculateDistance = (
@@ -146,12 +157,17 @@ ${placesInfo || 'جاري تحميل البيانات...'}
 [PLACE:ChIJxxxxx:فندق الأوراسي]"`;
 };
 
+interface SendMessageOptions {
+  model: AIModel;
+  useWebSearch?: boolean;
+}
+
 export const sendMessageToAI = async (
   message: string,
   userContext: UserContext,
   homePageData: Place[],
   conversationHistory: { role: 'user' | 'model'; text: string }[] = [],
-  aiModel: AIModel = 'openrouter'
+  options: SendMessageOptions = { model: 'kimi' }
 ): Promise<AIResponse> => {
   try {
     let placesWithDistance = homePageData;
@@ -168,13 +184,7 @@ export const sendMessageToAI = async (
     }
 
     const systemPrompt = getSystemPrompt(userContext.language, userContext, placesWithDistance);
-    
-    // Use Gemini API
-    if (aiModel === 'gemini') {
-      return await sendToGemini(message, systemPrompt, conversationHistory);
-    }
 
-    // Use OpenRouter API (default)
     const messages = [
       {
         role: 'system',
@@ -198,7 +208,8 @@ export const sendMessageToAI = async (
         ...authHeaders,
       },
       body: JSON.stringify({
-        model: 'google/gemini-2.0-flash-001',
+        model: options.model,
+        useWebSearch: options.useWebSearch === true,
         messages,
         temperature: 0.7,
         max_tokens: 4096,
@@ -206,101 +217,111 @@ export const sendMessageToAI = async (
     });
 
     if (!response.ok) {
-      const errorData = await response.json();
-      console.error('OpenRouter API Error:', errorData);
-      throw new Error(errorData.error?.message || `API Error: ${response.status}`);
+      const errorData = await response.json().catch(() => ({}));
+      console.error('Worker /ai non-OK response:', response.status, errorData);
+
+      const errCode: AIResponse['errorCode'] =
+        errorData?.error === 'quota_exceeded' ? 'quota_exceeded'
+        : errorData?.error === 'pro_required' ? 'pro_required'
+        : 'unknown';
+
+      const quotaMessages = {
+        ar: 'تجاوزت الحد الشهري لهذا النموذج. جدّد الاشتراك أو انتظر بداية الشهر القادم.',
+        fr: 'Vous avez atteint la limite mensuelle pour ce modèle.',
+        en: 'You have reached the monthly limit for this model.'
+      };
+      const proMessages = {
+        ar: 'هذا النموذج حصري لمشتركي Pro.',
+        fr: 'Ce modèle est réservé aux abonnés Pro.',
+        en: 'This model is available on Pro only.'
+      };
+      const genericMessages = {
+        ar: 'عذراً، حدث خطأ في الاتصال. يرجى المحاولة مرة أخرى.',
+        fr: 'Désolé, une erreur de connexion s\'est produite. Veuillez réessayer.',
+        en: 'Sorry, a connection error occurred. Please try again.'
+      };
+
+      const lang = userContext.language as keyof typeof quotaMessages;
+      let text =
+        errCode === 'quota_exceeded' ? (quotaMessages[lang] || quotaMessages.ar)
+        : errCode === 'pro_required' ? (proMessages[lang] || proMessages.ar)
+        : (genericMessages[lang] || genericMessages.ar);
+
+      // Surface the upstream error message inline so the user (and you, when
+      // debugging) can see exactly what went wrong instead of a generic line.
+      const upstreamMsg = errorData?.message || (typeof errorData?.error === 'string' ? errorData.error : '');
+      if (errCode === 'unknown' && upstreamMsg) {
+        text = `${text}\n\n[${response.status}] ${upstreamMsg}`;
+      }
+
+      return {
+        text,
+        error: upstreamMsg || `API Error: ${response.status}`,
+        errorCode: errCode,
+      };
     }
 
     const data = await response.json();
-    
+
     if (!data.choices || data.choices.length === 0) {
       throw new Error('No response from AI');
     }
 
-    const aiText = data.choices[0]?.message?.content || '';
-    
+    const choice = data.choices[0];
+    const msg = choice?.message || {};
+    const aiText: string = msg.content || '';
+
+    // Extract reasoning (Kimi K2 Thinking returns it alongside content).
+    // OpenRouter exposes it under `reasoning` (string) and/or
+    // `reasoning_details` (array of structured parts).
+    let reasoning: string | undefined;
+    if (typeof msg.reasoning === 'string' && msg.reasoning.trim()) {
+      reasoning = msg.reasoning;
+    } else if (Array.isArray(msg.reasoning_details)) {
+      const joined = msg.reasoning_details
+        .map((p: any) => (typeof p?.text === 'string' ? p.text : ''))
+        .filter(Boolean)
+        .join('\n');
+      if (joined.trim()) reasoning = joined;
+    }
+
+    // Extract web-search citations (standardized url_citation annotations).
+    let citations: Citation[] | undefined;
+    if (Array.isArray(msg.annotations)) {
+      const list: Citation[] = [];
+      for (const ann of msg.annotations) {
+        if (ann?.type === 'url_citation' && ann.url_citation?.url) {
+          list.push({
+            url: ann.url_citation.url,
+            title: ann.url_citation.title || ann.url_citation.url,
+            startIndex: ann.url_citation.start_index,
+            endIndex: ann.url_citation.end_index,
+          });
+        }
+      }
+      if (list.length > 0) citations = list;
+    }
+
     return {
       text: aiText,
+      reasoning,
+      citations,
     };
   } catch (error: any) {
     console.error('AI Service Error:', error);
-    
+
     const errorMessages = {
       ar: 'عذراً، حدث خطأ في الاتصال. يرجى المحاولة مرة أخرى.',
       fr: 'Désolé, une erreur de connexion s\'est produite. Veuillez réessayer.',
       en: 'Sorry, a connection error occurred. Please try again.'
     };
-    
+
     return {
       text: errorMessages[userContext.language as keyof typeof errorMessages] || errorMessages.ar,
-      error: error instanceof Error ? error.message : 'Unknown error'
+      error: error instanceof Error ? error.message : 'Unknown error',
+      errorCode: 'unknown',
     };
   }
-};
-
-// Send message to Gemini 3 Flash via Cloudflare Worker
-const sendToGemini = async (
-  message: string,
-  systemPrompt: string,
-  conversationHistory: { role: 'user' | 'model'; text: string }[]
-): Promise<AIResponse> => {
-  // Build contents array for Gemini
-  const contents = [
-    // System instruction as first user message
-    {
-      role: 'user',
-      parts: [{ text: systemPrompt }]
-    },
-    {
-      role: 'model',
-      parts: [{ text: 'مفهوم! سأساعدك كمرشد سياحي للجزائر.' }]
-    },
-    // Conversation history
-    ...conversationHistory.map(msg => ({
-      role: msg.role === 'model' ? 'model' : 'user',
-      parts: [{ text: msg.text }]
-    })),
-    // Current message
-    {
-      role: 'user',
-      parts: [{ text: message }]
-    }
-  ];
-
-  const authHeaders = await getAuthBearerHeader();
-  const response = await fetch(`${WORKER_URL}/gemini`, {
-    method: 'POST',
-    headers: {
-      'Content-Type': 'application/json',
-      ...authHeaders,
-    },
-    body: JSON.stringify({
-      contents,
-      generationConfig: {
-        temperature: 0.7,
-        maxOutputTokens: 8192,
-      }
-    }),
-  });
-
-  if (!response.ok) {
-    const errorData = await response.json();
-    console.error('Gemini API Error:', errorData);
-    throw new Error(errorData.error?.message || `Gemini API Error: ${response.status}`);
-  }
-
-  const data = await response.json();
-  
-  // Extract text from Gemini response
-  const aiText = data.candidates?.[0]?.content?.parts?.[0]?.text || '';
-  
-  if (!aiText) {
-    throw new Error('No response from Gemini');
-  }
-
-  return {
-    text: aiText,
-  };
 };
 
 // Quick suggestion queries

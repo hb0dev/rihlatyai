@@ -98,7 +98,7 @@ export function ProUpgradeModal({ language }: ProUpgradeModalProps) {
               <div className="bg-[#0d1321] rounded-2xl p-3.5 flex items-center justify-between">
                 <div>
                   <p className="text-gray-300 text-sm font-medium">{t.startingAt}</p>
-                  <p className="text-white text-lg font-bold">$3.33<span className="text-gray-500 text-xs font-normal">/{t.month}</span></p>
+                  <p className="text-white text-lg font-bold">$6.67<span className="text-gray-500 text-xs font-normal">/{t.month}</span></p>
                 </div>
                 <div className="flex items-center gap-2">
                   <span className="text-gray-500 text-xs">{t.paidVia}</span>
@@ -138,9 +138,9 @@ const translations = {
   ar: {
     title: 'ترقية إلى Pro',
     subtitle: 'افتح كامل إمكانيات رحلتي',
-    feature1: '60 رسالة AI يومياً بدل 10',
-    feature2: 'صور كاملة لجميع الأماكن',
-    feature3: 'نموذج Gemini 3 Flash المتقدم',
+    feature1: 'حوالي 1,000 رسالة Kimi K2.5 شهرياً',
+    feature2: 'تفكير عميق حصري (Kimi Thinking)',
+    feature3: 'صور كاملة وبحث في الويب',
     startingAt: 'يبدأ من',
     month: 'شهر',
     paidVia: 'الدفع عبر',
@@ -150,9 +150,9 @@ const translations = {
   fr: {
     title: 'Passer à Pro',
     subtitle: 'Débloquez toutes les fonctionnalités',
-    feature1: '60 messages AI/jour au lieu de 10',
-    feature2: 'Photos complètes de tous les lieux',
-    feature3: 'Modèle Gemini 3 Flash avancé',
+    feature1: '~1 000 messages Kimi K2.5 / mois',
+    feature2: 'Raisonnement profond exclusif',
+    feature3: 'Photos complètes et recherche web',
     startingAt: 'À partir de',
     month: 'mois',
     paidVia: 'Paiement via',
@@ -162,9 +162,9 @@ const translations = {
   en: {
     title: 'Upgrade to Pro',
     subtitle: 'Unlock the full Rihlaty experience',
-    feature1: '60 AI messages/day instead of 10',
-    feature2: 'Full photos for all places',
-    feature3: 'Advanced Gemini 3 Flash model',
+    feature1: '~1,000 Kimi K2.5 messages / month',
+    feature2: 'Exclusive deep thinking mode',
+    feature3: 'Full photos and web search',
     startingAt: 'Starting at',
     month: 'mo',
     paidVia: 'Paid via',

@@ -16,7 +16,7 @@ export function ProfilePage({ language, onLogout, onLanguageChange }: ProfilePag
   const { isDark, toggleTheme } = useTheme();
   const { user, userData, logout, updateUserProfile, deleteAccount } = useAuth();
   const { isSupported: notificationsSupported, settings: notificationSettings, updateSettings: updateNotificationSettings } = useNotifications();
-  const { isPro, expiresAt, messagesRemaining, dailyMessageLimit, setShowUpgradeModal } = useSubscription();
+  const { isPro, expiresAt, setShowUpgradeModal } = useSubscription();
   const [showEditModal, setShowEditModal] = useState(false);
   const [showLanguageModal, setShowLanguageModal] = useState(false);
   const [showPrivacyModal, setShowPrivacyModal] = useState(false);
@@ -63,7 +63,7 @@ export function ProfilePage({ language, onLogout, onLanguageChange }: ProfilePag
 • اكتشاف الشواطئ والمواقع الطبيعية الخلابة
 • استكشاف المعالم التاريخية والثقافية
 • البحث عن الفنادق والمطاعم القريبة
-• مساعد ذكي يعمل بالذكاء الاصطناعي (Gemini)
+• مساعد ذكي يعمل بالذكاء الاصطناعي
 • ملاحة مباشرة لأي وجهة
 • صور وتقييمات وتفاصيل الأماكن (أرقام هاتف، حالة مفتوح/مغلق)
 
@@ -141,7 +141,7 @@ Rihlaty est une application touristique intelligente conçue pour vous aider à 
 • Découvrir des plages et sites naturels magnifiques
 • Explorer les monuments historiques et culturels
 • Trouver des hôtels et restaurants à proximité
-• Assistant IA intelligent (Gemini)
+• Assistant IA intelligent
 • Navigation directe vers toute destination
 • Photos, notes et détails des lieux (téléphone, statut ouvert/fermé)
 
@@ -219,7 +219,7 @@ Rihlaty is an intelligent tourism app designed to help you discover the most bea
 • Discover stunning beaches and natural sites
 • Explore historical and cultural landmarks
 • Find nearby hotels and restaurants
-• AI-powered smart assistant (Gemini)
+• AI-powered smart assistant
 • Direct navigation to any destination
 • Place photos, ratings, and details (phone, open/closed status)
 
@@ -434,7 +434,6 @@ Version 2.0.0`,
                       {t.proExpires} {new Date(expiresAt).toLocaleDateString(language === 'ar' ? 'ar-DZ' : language === 'fr' ? 'fr-FR' : 'en-US')}
                     </p>
                   )}
-                  <p className="text-white/70 text-xs mt-0.5">{messagesRemaining}/{dailyMessageLimit} {t.messagesUsed}</p>
                 </div>
               </div>
             </div>
