@@ -284,8 +284,6 @@ export const sendMessageToAI = async (
         if (joined.trim()) reasoning = joined;
       }
     }
-
-    // Extract web-search citations (standardized url_citation annotations).
     let citations: Citation[] | undefined;
     if (Array.isArray(msg.annotations)) {
       const list: Citation[] = [];

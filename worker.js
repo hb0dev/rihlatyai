@@ -514,8 +514,8 @@ export default {
         return jsonRes({ error: 'Authentication required' }, corsHeaders, 401);
       }
       const PLANS = {
-        monthly: { amount: 1800, label: 'Rihlaty Pro - Monthly', days: 30 },
-        yearly: { amount: 19900, label: 'Rihlaty Pro - Yearly', days: 365 },
+        monthly: { amount: 1000, label: 'Rihlaty Pro - Monthly', days: 30 },
+        yearly: { amount: 10000, label: 'Rihlaty Pro - Yearly', days: 365 },
       };
       try {
         const { plan, successUrl, failureUrl } = await request.json();

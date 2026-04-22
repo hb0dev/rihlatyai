@@ -305,14 +305,14 @@ export function SubscribePage({ language, onNavigateBack }: SubscribePageProps) 
                       {period === 'monthly' ? t.monthly : t.yearly}
                     </p>
                     <p className={`text-2xl font-bold ${active ? 'text-white' : 'text-gray-300'}`}>
-                      {period === 'monthly' ? '$6.99' : '$79.99'}
+                      {period === 'monthly' ? '$4.2' : '$40'}
                     </p>
                     <p className={`text-xs mt-0.5 ${active ? 'text-gray-400' : 'text-gray-500'}`}>
-                      {period === 'monthly' ? `1,800 ${t.dzd}` : `19,900 ${t.dzd}`}
+                      {period === 'monthly' ? `1,000 ${t.dzd}` : `10,000 ${t.dzd}`}
                     </p>
                     {period === 'yearly' && (
                       <p className={`text-xs mt-1 ${active ? 'text-teal-400' : 'text-gray-500'}`}>
-                        ≈ $6.66/{t.monthShort}
+                        ≈ $3.33/{t.monthShort}
                       </p>
                     )}
                   </button>
@@ -378,7 +378,7 @@ const translations = {
     day: 'يوم',
     monthly: 'شهري',
     yearly: 'سنوي',
-    save: 'وفّر 5%',
+    save: 'وفّر 8%',
     dzd: 'د.ج',
     monthShort: 'شهر',
     subscribeBtn: 'اشترك الآن',
@@ -414,7 +414,7 @@ const translations = {
     day: 'jour',
     monthly: 'Mensuel',
     yearly: 'Annuel',
-    save: 'Économisez 5%',
+    save: 'Économisez 8%',
     dzd: 'DA',
     monthShort: 'mois',
     subscribeBtn: "S'abonner maintenant",
@@ -450,7 +450,7 @@ const translations = {
     day: 'day',
     monthly: 'Monthly',
     yearly: 'Yearly',
-    save: 'Save 5%',
+    save: 'Save 8%',
     dzd: 'DZD',
     monthShort: 'mo',
     subscribeBtn: 'Subscribe Now',
