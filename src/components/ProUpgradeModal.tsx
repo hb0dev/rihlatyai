@@ -98,7 +98,7 @@ export function ProUpgradeModal({ language }: ProUpgradeModalProps) {
               <div className="bg-[#0d1321] rounded-2xl p-3.5 flex items-center justify-between">
                 <div>
                   <p className="text-gray-300 text-sm font-medium">{t.startingAt}</p>
-                  <p className="text-white text-lg font-bold">$6.66<span className="text-gray-500 text-xs font-normal">/{t.month}</span></p>
+                  <p className="text-white text-lg font-bold">$3.33<span className="text-gray-500 text-xs font-normal">/{t.month}</span></p>
                 </div>
                 <div className="flex items-center gap-2">
                   <span className="text-gray-500 text-xs">{t.paidVia}</span>
